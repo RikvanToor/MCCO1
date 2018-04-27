@@ -1,0 +1,6 @@
+set -e # exit on error
+cd src
+make
+cd ..
+cabal build
+

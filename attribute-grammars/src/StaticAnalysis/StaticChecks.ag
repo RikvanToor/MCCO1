@@ -1,0 +1,50 @@
+
+imports {
+import Utils.Similarity ( similar )
+import Main.Args
+import Syntax.UHA_Syntax
+import Syntax.UHA_Utils
+import Syntax.UHA_Range
+import Types
+
+--import Utils.StaticErrors
+import Utils.Warnings
+import Utils.Messages
+import Data.List
+import Utils.Utils
+
+import qualified Data.Map as M
+
+import ModuleSystem.ImportEnvironment
+import Parser.OperatorTable
+import Data.Char ( isUpper )
+
+}
+
+INCLUDE "UHA_Syntax.ag"
+
+ATTR Module
+   [ baseName              : String
+     importEnvironments    : ImportEnvironments
+   |
+   | collectEnvironment    : ImportEnvironment  
+     errors                : Errors
+     typeSignatures        : {[(Name,TpScheme)]}
+     warnings              : Warnings
+   ]
+
+ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern    
+     Statement Statements Qualifier Qualifiers 
+     Alternative Alternatives Constructor Constructors
+     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings     
+     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression 
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | nrOfLeaves USE {(+)} {1} : Int ]
+
+     
+SEM Module
+   | Module     lhs.errors   = []
+                   .warnings = []
+                   .typeSignatures = []
+                   .collectEnvironment = head (@lhs.importEnvironments)
+
+

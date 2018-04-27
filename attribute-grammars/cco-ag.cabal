@@ -1,0 +1,34 @@
+name:                   cco-ag
+version:                1.0
+synopsis:               Base-line for assignment of Compiler Construction Master course. Lexing and parsing for simple Haskell programs
+homepage:               http://www.cs.uu.nl/docs/vakken/cco
+description:            ---
+category:               Compiler
+copyright:              (c) 2018
+license:                GPL
+license-file:           LICENSE.txt
+author:                 Jurriaan Hage
+maintainer:             j.hage@uu.nl
+stability:              provisional
+extra-source-files:
+  CREDITS.txt
+  RELEASENOTES.txt
+  src/Makefile
+  src/Parser/ResolveOperators.ag
+  src/Syntax/UHA_OneLine.ag
+  src/Syntax/UHA_Pretty.ag
+  src/Syntax/UHA_Syntax.ag
+  src/StaticAnalysis/StaticChecks.ag
+build-type:             Simple
+cabal-version:          >= 1.10.1.0
+tested-with:            GHC == 8.2.1
+
+--------------------------------------------------------------------------------
+
+Executable cco-ag
+  Build-Depends:     base >= 3 && < 5, containers, mtl, parsec, network, process, transformers, filepath, directory, wl-pprint
+  ghc-options:       -Wall -Wno-unused-imports -Wno-orphans
+  default-language:  Haskell98
+  hs-source-dirs:    src dist/build/autogen/uuagc
+  Main-is:           Main.hs
+
