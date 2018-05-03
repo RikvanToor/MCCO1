@@ -27,24 +27,26 @@ ATTR Module
    [ baseName              : String
      importEnvironments    : ImportEnvironments
    |
-   | collectEnvironment    : ImportEnvironment  
+   | collectEnvironment    : ImportEnvironment
      errors                : Errors
      typeSignatures        : {[(Name,TpScheme)]}
      warnings              : Warnings
    ]
 
-ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern    
-     Statement Statements Qualifier Qualifiers 
+ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
+     Statement Statements Qualifier Qualifiers
      Alternative Alternatives Constructor Constructors
-     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings     
-     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression 
+     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
+     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
      Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | nrOfLeaves USE {(+)} {1} : Int ]
 
-     
+
 SEM Module
    | Module     lhs.errors   = []
                    .warnings = []
                    .typeSignatures = []
                    .collectEnvironment = head (@lhs.importEnvironments)
 
-
+SEM Declaration
+  | Class     lhs.nrOfLeaves=0
+  | Instance  lhs.nrOfLeaves=0
