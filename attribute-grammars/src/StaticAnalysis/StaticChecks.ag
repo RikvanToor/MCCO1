@@ -41,12 +41,37 @@ ATTR Module Body Declarations Declaration Expressions Expression Patterns Patter
      Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | nrOfLeaves USE {(+)} {1} : Int ]
 
 
+-- Opgave B, letDepth
+ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
+     Statement Statements Qualifier Qualifiers
+     Alternative Alternatives Constructor Constructors
+     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
+     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | letDepth USE {(+)} {0} : Int ]
+
 SEM Module
    | Module     lhs.errors   = []
                    .warnings = []
                    .typeSignatures = []
                    .collectEnvironment = head (@lhs.importEnvironments)
 
+SEM Declarations
+  | Cons lhs.letDepth = max @hd.letDepth @tl.letDepth
+
+SEM Expressions
+  | Cons lhs.letDepth = max @hd.letDepth @tl.letDepth
+
+-- Opgave A
 SEM Declaration
-  | Class     lhs.nrOfLeaves=0
-  | Instance  lhs.nrOfLeaves=0
+  | Class     lhs.nrOfLeaves = 0
+  | Instance  lhs.nrOfLeaves = 0
+
+-- Opgave B
+SEM Expression
+  | Let lhs.letDepth = 1 + max @expression.letDepth @declarations.letDepth
+
+
+
+
+
+
