@@ -18,6 +18,9 @@ import Main.PhaseStaticChecks
 import Main.PhaseResolveOperators
 import Parser.ParseMessage
 
+import qualified Data.Set as S
+import Data.Set (Set)
+
 main :: IO ()
 main = do
     args                     <- getArgs
@@ -65,7 +68,7 @@ compile fullName =
         -- The code that should be executed you should put in
         -- StaticAnalysis/
         -- Phase 4: Static checking
-        (nrOfLeaves, letDepth) <-
+        (nrOfLeaves, letDepth, emptyClasses) <-
             doPhaseWithExit 20 (const "S") compileOptions $
                phaseStaticChecks fullName resolvedModule importEnvs options
 
@@ -73,6 +76,8 @@ compile fullName =
         putStrLn "Report:"
         putStrLn ("* Number of ast leaves: " ++ show nrOfLeaves)
         putStrLn ("* Maximum let depth: "    ++ show letDepth)
+        putStrLn ("* Empty classes: " ++ show emptyClasses)
+
 
         putStrLn "....any other stuff you will be computing..."
 
@@ -84,3 +89,6 @@ compile fullName =
 stopCompilingIf :: Bool -> IO ()
 stopCompilingIf bool = when bool (exitWith (ExitFailure 1))
 
+noInstanceDeclaredWarning :: String -> IO ()
+noInstanceDeclaredWarning str =
+  putStrLn $ "No instance declared for class " ++ str

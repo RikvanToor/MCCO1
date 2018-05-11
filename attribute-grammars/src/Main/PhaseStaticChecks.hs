@@ -7,12 +7,15 @@ import qualified StaticAnalysis.StaticChecks as SC
 import Syntax.UHA_Syntax (Name)
 import Types (TpScheme)
 
+import qualified Data.Set as S
+import Data.Set (Set)
+
 -- The ouput of this function tells you what the synthesized/chained
 -- attributes we are in fact interested in. At this point, that is simply
 -- an integer, counting the number of nodes in the ast.
 phaseStaticChecks ::
    String -> Module -> [ImportEnvironment] -> [Option] ->
-   Phase Error (Int, Int)
+   Phase Error (Int, Int, Set String)
 phaseStaticChecks fullName module_ importEnvs options = do
     enterNewPhase "Static checking" options
 
@@ -27,4 +30,7 @@ phaseStaticChecks fullName module_ importEnvs options = do
 
     -- At this point, we just return the size. Not checking for errors yet,
     -- so we are always right.
-    return (Right (SC.nrOfLeaves_Syn_Module res, SC.letDepth_Syn_Module res))
+    return (Right ( SC.nrOfLeaves_Syn_Module res
+                  , SC.letDepth_Syn_Module res
+                  , SC.emptyClasses_Syn_Module res)
+           )
