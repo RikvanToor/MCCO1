@@ -69,7 +69,7 @@ compile fullName =
         -- StaticAnalysis/
         -- Phase 4: Static checking
 
-        (nrOfLeaves, letDepth, keywords, emptyClasses) <-
+        (nrOfLeaves, letDepth, keywords, emptyClasses, typeDecls) <-
             doPhaseWithExit 20 (const "S") compileOptions $
                phaseStaticChecks fullName resolvedModule importEnvs options
 
@@ -80,14 +80,25 @@ compile fullName =
         putStrLn ("* Maximum let depth: "    ++ show letDepth)
         putStrLn("* Used keywords: " ++ show keywords)
         putStrLn ("* Empty classes: " ++ show emptyClasses)
-
-
-        putStrLn "....any other stuff you will be computing..."
+        printTypeDecls typeDecls
 
         putStrLn "Done now"
 
         --unless (NoWarnings `elem` options) $
         --    showMessages staticWarnings
+
+printTypeDecls :: [(String, [(String, Int)])] -> IO ()
+printTypeDecls [] = putStrLn ("* No double type declarations")
+printTypeDecls xs = do
+    putStrLn "* Error: Types are declared multiple times:"
+    let p :: (String, [(String, Int)]) -> IO ()
+        p (n, ds) = do
+            putStrLn $ "  * " ++ n ++ " is declared at:"
+            mapM_ q ds
+        q :: (String, Int) -> IO ()
+        q (f, l) = do
+            putStrLn $ "    - " ++ f ++ " on line " ++ (show l)
+    mapM_ p xs
 
 stopCompilingIf :: Bool -> IO ()
 stopCompilingIf bool = when bool (exitWith (ExitFailure 1))
