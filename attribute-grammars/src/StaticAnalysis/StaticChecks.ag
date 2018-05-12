@@ -14,6 +14,8 @@ import Data.List
 import Utils.Utils
 
 import qualified Data.Map as M
+import qualified Data.Set as S
+import Data.Set (Set)
 
 import ModuleSystem.ImportEnvironment
 import Parser.OperatorTable
@@ -41,15 +43,53 @@ ATTR Module Body Declarations Declaration Expressions Expression Patterns Patter
      LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
      Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | nrOfLeaves USE {(+)} {1} : Int ]
 
+-- Opgave B, letDepth
+ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
+     Statement Statements Qualifier Qualifiers
+     Alternative Alternatives Constructor Constructors
+     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
+     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | letDepth USE {(+)} {0} : Int ]
+
+-- Opgave D, list of type classes
+ATTR Module Body Declarations Declaration
+     Statement Statements Qualifier Qualifiers
+     Alternative Alternatives
+     FunctionBinding FunctionBindings
+     RightHandSide MaybeDeclarations
+     [ | | usedInstances USE {S.union} {S.empty} : {Set String}]
+
+ATTR Module Body Declarations Declaration
+     Statement Statements Qualifier Qualifiers
+     Alternative Alternatives
+     FunctionBinding FunctionBindings
+     RightHandSide MaybeDeclarations
+     [ | | definedClasses USE {S.union} {S.empty} : {Set String}]
+
+ATTR Module [ | | emptyClasses : {Set String} ]
+
+ATTR SimpleType Name [ | | stname : String ]
+
 SEM Module
    | Module     lhs.errors   = []
                    .warnings = []
                    .typeSignatures = []
                    .collectEnvironment = head (@lhs.importEnvironments)
+                   .emptyClasses = @body.definedClasses `S.difference` @body.usedInstances
 
+SEM Declarations
+  | Cons lhs.letDepth = max @hd.letDepth @tl.letDepth
+
+SEM Expressions
+  | Cons lhs.letDepth = max @hd.letDepth @tl.letDepth
+
+-- Opgave A
 SEM Declaration
-  | Class     lhs.nrOfLeaves=0
-  | Instance  lhs.nrOfLeaves=0
+  | Class     lhs.nrOfLeaves = 0
+                 .definedClasses = S.singleton (@simpletype.stname)
+  | Instance  lhs.nrOfLeaves = 0
+                 .usedInstances = S.singleton (@name.stname)
+                 
 
 ATTR Module Body Declarations Declaration Fixity Expressions Expression Patterns Pattern
      Statement Statements Qualifier Qualifiers
@@ -94,3 +134,18 @@ SEM Expression
    | Case     lhs.reservedWords = "case" : @expression.reservedWords ++ "of" : @alternatives.reservedWords
    | Do       lhs.reservedWords = "do" : @statements.reservedWords
    | Let      lhs.reservedWords = "let" : @declarations.reservedWords ++ "in" : @expression.reservedWords
+
+-- Opgave B
+SEM Expression
+  | Let lhs.letDepth = 1 + max @expression.letDepth @declarations.letDepth
+
+
+SEM SimpleType
+  | SimpleType lhs.stname = @name.stname
+
+SEM Name
+  | Identifier lhs.stname = @name
+  | Operator   lhs.stname = @name
+  | Special    lhs.stname = @name
+
+
