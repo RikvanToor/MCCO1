@@ -19,6 +19,7 @@ import Data.Set (Set)
 
 import ModuleSystem.ImportEnvironment
 import Parser.OperatorTable
+import Parser.Lexer (keywords)
 import Data.Char ( isUpper )
 
 }
@@ -41,7 +42,6 @@ ATTR Module Body Declarations Declaration Expressions Expression Patterns Patter
      GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
      LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
      Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | nrOfLeaves USE {(+)} {1} : Int ]
-
 
 -- Opgave B, letDepth
 ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
@@ -89,6 +89,7 @@ SEM Declaration
                  .definedClasses = S.singleton (@simpletype.stname)
   | Instance  lhs.nrOfLeaves = 0
                  .usedInstances = S.singleton (@name.stname)
+                 
 
 -- Opgave B
 SEM Expression
@@ -103,3 +104,48 @@ SEM Name
   | Operator   lhs.stname = @name
   | Special    lhs.stname = @name
 
+-- Opgave C
+
+ATTR Module Body Declarations Declaration Fixity Expressions Expression Patterns Pattern
+     Statement Statements Qualifier Qualifiers
+     Alternative Alternatives Constructor Constructors
+     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
+     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems ImportDeclaration [ | | reservedWords USE {(++)}  {[]} : {[String]} ]
+
+SEM Module
+   | Module   lhs.reservedWords = "module" : "where" : (@body.reservedWords)
+
+ATTR MaybeName [ | | reservedWordsAs USE {(++)} {[]} : {[String]} ]
+
+SEM MaybeName
+   | Nothing  lhs.reservedWordsAs = []
+   | Just     lhs.reservedWordsAs = ["as"]
+
+SEM ImportDeclaration
+   | Import   lhs.reservedWords = "import" : (if @qualified then ["qualified"] else []) ++ (@asname.reservedWordsAs) --TODO hiding
+
+SEM Declaration
+   | Type     lhs.reservedWords = "type" : (@type.reservedWords)
+   | Data     lhs.reservedWords = "data" : (@context.reservedWords) ++ (@constructors.reservedWords) -- ++ (case @derivings of [] -> []; _ -> ["deriving"]) --TODO. Can't figure out how to pattern match on those lists. UUAGC docs are down atm.
+   | Newtype  lhs.reservedWords = "newtype" : (@context.reservedWords) ++ (@constructor.reservedWords) -- ++ (@derivings.reservedWordsDerivings)
+   | Class    lhs.reservedWords = "class" : (@context.reservedWords) ++ (@where.reservedWords)
+   | Instance lhs.reservedWords = "instance" : (@context.reservedWords) ++ (@types.reservedWords) ++ (@where.reservedWords)
+   | Hole     lhs.reservedWords = ["_"]
+   | Default  lhs.reservedWords = "default" : @types.reservedWords
+
+SEM Fixity
+   | Infixl   lhs.reservedWords = ["infixl"]
+   | Infixr   lhs.reservedWords = ["infixr"]
+   | Infix    lhs.reservedWords = ["infix"]
+
+SEM MaybeDeclarations
+   | Nothing  lhs.reservedWords = []
+   | Just     lhs.reservedWords = "where" : (@declarations.reservedWords)
+
+SEM Expression
+   | Hole     lhs.reservedWords = ["_"]
+   | If       lhs.reservedWords = "if" : @guardExpression.reservedWords ++ "then" : @thenExpression.reservedWords ++ "else" : @elseExpression.reservedWords
+   | Case     lhs.reservedWords = "case" : @expression.reservedWords ++ "of" : @alternatives.reservedWords
+   | Do       lhs.reservedWords = "do" : @statements.reservedWords
+   | Let      lhs.reservedWords = "let" : @declarations.reservedWords ++ "in" : @expression.reservedWords
