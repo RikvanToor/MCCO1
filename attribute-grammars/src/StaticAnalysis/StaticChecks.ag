@@ -51,6 +51,14 @@ ATTR Module Body Declarations Declaration Expressions Expression Patterns Patter
      LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
      Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | letDepth USE {(+)} {0} : Int ]
 
+-- Opgave C, reservedWords
+ATTR Module Body Declarations Declaration Fixity Expressions Expression Patterns Pattern
+     Statement Statements Qualifier Qualifiers
+     Alternative Alternatives Constructor Constructors
+     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
+     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems ImportDeclaration [ | | reservedWords USE {(++)}  {[]} : {[String]} ]
+
 -- Opgave D, list of type classes
 ATTR Module Body Declarations Declaration
      Statement Statements Qualifier Qualifiers
@@ -69,6 +77,16 @@ ATTR Module Body Declarations Declaration
 ATTR Module [ | | emptyClasses : {Set String} ]
 
 ATTR SimpleType Name [ | | stname : String ]
+
+-- Opgave E, multiple type declarations
+ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
+     Statement Statements Qualifier Qualifiers
+     Alternative Alternatives Constructor Constructors
+     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
+     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | typeDecls USE {(++)} {[]} : {[(String,[(String,Int)])]} ]
+
+
 
 SEM Module
    | Module     lhs.errors   = []
@@ -106,13 +124,6 @@ SEM Name
 
 -- Opgave C
 
-ATTR Module Body Declarations Declaration Fixity Expressions Expression Patterns Pattern
-     Statement Statements Qualifier Qualifiers
-     Alternative Alternatives Constructor Constructors
-     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
-     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
-     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems ImportDeclaration [ | | reservedWords USE {(++)}  {[]} : {[String]} ]
-
 SEM Module
    | Module   lhs.reservedWords = "module" : "where" : (@body.reservedWords)
 
@@ -149,3 +160,25 @@ SEM Expression
    | Case     lhs.reservedWords = "case" : @expression.reservedWords ++ "of" : @alternatives.reservedWords
    | Do       lhs.reservedWords = "do" : @statements.reservedWords
    | Let      lhs.reservedWords = "let" : @declarations.reservedWords ++ "in" : @expression.reservedWords
+
+-- Opgave E
+
+ATTR SimpleType [ | | decls : {(String, [(String,Int)])} ]
+
+ATTR Range Position [ | | info : {[(String,Int)]} ]
+
+SEM Position
+   | Position   lhs.info = [(@filename, @line)]
+   | Unknown    lhs.info = []
+
+SEM Range
+   | Range      lhs.info = @start.info
+
+SEM SimpleType
+   | SimpleType lhs.decls = (@name.stname, @range.info)
+
+SEM Declaration
+   | Type       lhs.typeDecls = [@simpletype.decls]
+
+SEM Module
+   | Module     lhs.typeDecls = M.toList $ M.filter ((>1) . length) $ foldr (uncurry $ M.insertWith (++)) M.empty @body.typeDecls
