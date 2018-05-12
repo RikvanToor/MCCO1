@@ -91,6 +91,21 @@ SEM Declaration
                  .usedInstances = S.singleton (@name.stname)
                  
 
+-- Opgave B
+SEM Expression
+  | Let lhs.letDepth = 1 + max @expression.letDepth @declarations.letDepth
+
+
+SEM SimpleType
+  | SimpleType lhs.stname = @name.stname
+
+SEM Name
+  | Identifier lhs.stname = @name
+  | Operator   lhs.stname = @name
+  | Special    lhs.stname = @name
+
+-- Opgave C
+
 ATTR Module Body Declarations Declaration Fixity Expressions Expression Patterns Pattern
      Statement Statements Qualifier Qualifiers
      Alternative Alternatives Constructor Constructors
@@ -134,18 +149,3 @@ SEM Expression
    | Case     lhs.reservedWords = "case" : @expression.reservedWords ++ "of" : @alternatives.reservedWords
    | Do       lhs.reservedWords = "do" : @statements.reservedWords
    | Let      lhs.reservedWords = "let" : @declarations.reservedWords ++ "in" : @expression.reservedWords
-
--- Opgave B
-SEM Expression
-  | Let lhs.letDepth = 1 + max @expression.letDepth @declarations.letDepth
-
-
-SEM SimpleType
-  | SimpleType lhs.stname = @name.stname
-
-SEM Name
-  | Identifier lhs.stname = @name
-  | Operator   lhs.stname = @name
-  | Special    lhs.stname = @name
-
-

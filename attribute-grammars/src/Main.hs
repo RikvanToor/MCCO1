@@ -69,16 +69,16 @@ compile fullName =
         -- StaticAnalysis/
         -- Phase 4: Static checking
 
-        (keywords, nrOfLeaves, letDepth, emptyClasses) <-
+        (nrOfLeaves, letDepth, keywords, emptyClasses) <-
             doPhaseWithExit 20 (const "S") compileOptions $
                phaseStaticChecks fullName resolvedModule importEnvs options
 
 
         putStrLn "Report:"
         putStrLn ("* Number of ast leaves: " ++ show nrOfLeaves)
-        putStrLn("* Used keywords: " ++ show keywords)
         
         putStrLn ("* Maximum let depth: "    ++ show letDepth)
+        putStrLn("* Used keywords: " ++ show keywords)
         putStrLn ("* Empty classes: " ++ show emptyClasses)
 
 

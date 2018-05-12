@@ -16,7 +16,7 @@ import Data.Set (Set)
 
 phaseStaticChecks ::
    String -> Module -> [ImportEnvironment] -> [Option] ->
-   Phase Error ([String], Int, Int, Set String)
+   Phase Error (Int, Int, [String], Set String)
 phaseStaticChecks fullName module_ importEnvs options = do
     enterNewPhase "Static checking" options
 
@@ -36,4 +36,4 @@ phaseStaticChecks fullName module_ importEnvs options = do
 
     -- At this point, we just return the size. Not checking for errors yet,
     -- so we are always right.
-    return (Right (keywords, size, letDepth, emptyClasses))
+    return (Right (size, letDepth, keywords, emptyClasses))
