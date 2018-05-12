@@ -19,7 +19,6 @@ import Data.Set (Set)
 
 import ModuleSystem.ImportEnvironment
 import Parser.OperatorTable
-import Parser.Lexer (keywords)
 import Data.Char ( isUpper )
 
 }
