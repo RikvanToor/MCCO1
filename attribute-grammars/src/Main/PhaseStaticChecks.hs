@@ -15,7 +15,7 @@ import Data.Set (Set)
 -- an integer, counting the number of nodes in the ast.
 phaseStaticChecks ::
    String -> Module -> [ImportEnvironment] -> [Option] ->
-   Phase Error (Int, Int, Set String)
+   Phase Error (Int, Int, Set String, [(String, Int))
 phaseStaticChecks fullName module_ importEnvs options = do
     enterNewPhase "Static checking" options
 
@@ -32,5 +32,6 @@ phaseStaticChecks fullName module_ importEnvs options = do
     -- so we are always right.
     return (Right ( SC.nrOfLeaves_Syn_Module res
                   , SC.letDepth_Syn_Module res
-                  , SC.emptyClasses_Syn_Module res)
+                  , SC.emptyClasses_Syn_Module res
+                  , SC.shadowingVariables_Syn_Module res)
            )

@@ -1,4 +1,3 @@
-
 imports {
 import Utils.Similarity ( similar )
 import Main.Args
@@ -35,13 +34,6 @@ ATTR Module
      warnings              : Warnings
    ]
 
-ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
-     Statement Statements Qualifier Qualifiers
-     Alternative Alternatives Constructor Constructors
-     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
-     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
-     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | nrOfLeaves USE {(+)} {1} : Int ]
-
 
 -- Opgave B, letDepth
 ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
@@ -49,7 +41,14 @@ ATTR Module Body Declarations Declaration Expressions Expression Patterns Patter
      Alternative Alternatives Constructor Constructors
      GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
      LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
-     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | letDepth USE {(+)} {0} : Int ]
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems
+     [
+     |
+     | letDepth   USE {(+)} {0} : Int
+       nrOfLeaves USE {(+)} {1} : Int
+     ]
+
+-- Opgave C,
 
 -- Opgave D, list of type classes
 ATTR Module Body Declarations Declaration
@@ -57,49 +56,243 @@ ATTR Module Body Declarations Declaration
      Alternative Alternatives
      FunctionBinding FunctionBindings
      RightHandSide MaybeDeclarations
-     [ | | usedInstances USE {S.union} {S.empty} : {Set String}]
+  SYN usedInstances  USE {S.union} {S.empty} : {Set String}
+    , definedClasses USE {S.union} {S.empty} : {Set String}
 
-ATTR Module Body Declarations Declaration
-     Statement Statements Qualifier Qualifiers
-     Alternative Alternatives
-     FunctionBinding FunctionBindings
-     RightHandSide MaybeDeclarations
-     [ | | definedClasses USE {S.union} {S.empty} : {Set String}]
+ATTR Module
+  SYN emptyClasses : {Set String}
 
-ATTR Module [ | | emptyClasses : {Set String} ]
-
-ATTR SimpleType Name [ | | stname : String ]
+ATTR SimpleType Name
+  SYN stname : String
 
 SEM Module
-   | Module     lhs.errors   = []
-                   .warnings = []
-                   .typeSignatures = []
-                   .collectEnvironment = head (@lhs.importEnvironments)
-                   .emptyClasses = @body.definedClasses `S.difference` @body.usedInstances
+  | Module
+    lhs.errors   = []
+       .warnings = []
+       .typeSignatures = []
+       .collectEnvironment = head (@lhs.importEnvironments)
+       .emptyClasses = @body.definedClasses `S.difference` @body.usedInstances
 
 SEM Declarations
-  | Cons lhs.letDepth = max @hd.letDepth @tl.letDepth
+  | Cons
+    lhs.letDepth = max @hd.letDepth @tl.letDepth
 
 SEM Expressions
-  | Cons lhs.letDepth = max @hd.letDepth @tl.letDepth
+  | Cons
+    lhs.letDepth = max @hd.letDepth @tl.letDepth
 
--- Opgave A
+-- Opgave A, D, E
 SEM Declaration
-  | Class     lhs.nrOfLeaves = 0
-                 .definedClasses = S.singleton (@simpletype.stname)
-  | Instance  lhs.nrOfLeaves = 0
-                 .usedInstances = S.singleton (@name.stname)
+  | Class
+    lhs.nrOfLeaves     = 0
+       .definedClasses = S.singleton (@simpletype.stname)
+  | Instance
+    lhs.nrOfLeaves     = 0
+       .usedInstances  = S.singleton (@name.stname)
 
 -- Opgave B
 SEM Expression
-  | Let lhs.letDepth = 1 + max @expression.letDepth @declarations.letDepth
+  | Let
+    lhs.letDepth = 1 + max @expression.letDepth @declarations.letDepth
 
-
+-- Opgave D, E
 SEM SimpleType
-  | SimpleType lhs.stname = @name.stname
+  | SimpleType
+    lhs.stname = @name.stname
 
 SEM Name
-  | Identifier lhs.stname = @name
-  | Operator   lhs.stname = @name
-  | Special    lhs.stname = @name
+  | Identifier
+    lhs.stname   = @name
+  | Operator
+    lhs.stname   = @name
+  | Special
+    lhs.stname   = @name
 
+-- Opgave F
+-- Inherited and synthesized:
+--  * scope level
+--
+-- Inherited only:
+--  * list of variable names
+--
+-- Synthesized only
+--  * shadowing boolean
+
+{
+type Variable  = (String, Int)
+type Variables = [Variable]
+}
+
+ATTR Body ImportDeclarations ImportDeclaration
+     MaybeImportSpecification ImportSpecification Imports Import Declaration
+     FieldDeclaration Expression Statement Qualifier Alternative
+     GuardedExpression RecordExpressionBinding RecordPatternBinding
+     FunctionBinding LeftHandSide RightHandSide Pattern
+  INH   scopeLevel : Int
+      , variables  : Variables
+  SYN   scopeLevel : Int
+      , variables  : Variables
+      , shadowing  : Bool
+
+-- Initial scope level is 0 at the root
+SEM Body
+  | Body
+    -- Body is the root
+    lhs.scopeLevel = 0
+    -- Imported variables are at level 0 too, everything else goes 1 up
+    importdeclarations.scopeLevel = @lhs.scopeLevel
+    declarations.scopeLevel = @lhs.scopeLevel + 1
+
+    lhs.variables = @importdeclarations.variables
+
+-- Imported variables are global scope so they have to bubble up to the root of
+-- the AST. If they are qualified then forget about them. The level for all of
+-- them is 0 and no shadowing between them is assumed.
+SEM ImportDeclaration
+  | Import
+    lhs.variables = if @qualified
+                    then []
+                    else @importspecification.variables
+
+SEM MaybeImportSpecification
+  | Nothing
+    lhs.variables = []
+  | Just
+    lhs.variables = @importspecification.variables
+
+SEM ImportSpecification
+  | Import
+    lhs.variables = @imports.variables
+
+SEM Imports
+  | Cons
+    lhs.variables = @hd.variables ++ @tl.variables
+
+SEM Import
+  | Variable
+    lhs.variables = [(@name.stname, @lhs.scopeLevel)]
+  | TypeOrClass
+    lhs.variables = []
+  | TypeOrClassComplete
+    lhs.variables = []
+
+--------------------------------------------------------------------------------
+
+SEM MaybeDeclarations
+  | Nothing
+    lhs.variables = []
+  | Just
+    declarations.variables = @lhs.variables
+
+-- These declarations are all on the same level and can refer to each other:
+--
+-- > x = 5
+-- > y = x + 5
+--
+-- the body of y can refer to x
+SEM Declarations
+  | Cons
+    hd.scopeLevel = @lhs.scopeLevel
+    tl.scopeLevel = @lhs.scopeLevel
+
+SEM Declaration
+  | Class
+    where.scopeLevel = @lhs.scopeLevel + 1
+  | Instance
+    where.scopeLevel = @lhs.scopeLevel + 1
+  | FunctionBindings
+    bindings.scopeLevel = @lhs.scopeLevel + 1
+  | PatternBinding
+    pattern.scopeLevel       = @lhs.scopeLevel + 1
+    righthandside.scopeLevel = @lhs.scopeLevel + 1
+
+
+-- Names of fields of data types,
+SEM FieldDeclaration
+  | FieldDeclaration
+    lhs.variables = @names.hd
+
+SEM Expression
+  | Lambda
+  | Case
+  | Let
+
+SEM Statement
+  | Expression
+  | Let
+  | Generator
+
+SEM Qualifier
+  | Let
+  | Generator
+
+SEM Alternative
+  | Alternative
+
+SEM GuardedExpression
+  | GuardedExpression
+
+SEM RecordExpressionBinding
+  | RecordExpressionBinding
+
+SEM RecordPatternBinding
+  | RecordPatternBinding
+
+SEM FunctionBinding
+  | Feedback
+  | FunctionBinding
+
+SEM LeftHandSide
+  | Function
+  | Infix
+  | Parenthesized
+
+SEM RightHandSide
+  | Expression
+    where.variables = @lhs.variables ++ @where.variables
+  | Guarded
+
+SEM Pattern
+  | Variable
+    lhs.variables = [(@name.stname, @lhs.scopeLevel)]
+  | Parenthesized
+    lhs.variables = @lhs.variables ++ @pattern.variables
+  | InfixConstructor
+    @lhs.variables = @lhs.variables ++ @leftPattern.variables ++ @rightPattern.variables
+  | List
+    lhs.variables = @lhs.variables ++ @patterns.variables
+  | Tuple
+    lhs.variables = @lhs.variables ++ @patterns.variables
+  | Record
+    lhs.variables = @lhs.variables ++ @recordPatternBindings.variables
+  | As
+    lhs.variables = @lhs.variables ++ @pattern.variables
+  | Irrefutable
+    lhs.variables = @lhs.variables ++ @pattern.variables
+
+{-
+
+-- This attribute should be inherited so that branches on the same depth of the
+-- tree do not pollute each others environments.
+ATTR _
+  [
+  |
+  | variables USE {(++)} {[]} : Variables
+  ]
+
+ATTR _
+  [
+  |
+  | shadowing USE {(||)} {False} : Bool
+  ]
+
+-- Put new variables in the environment with their corresponding scope depth.
+-- Note that scope depth corresponds to the depth of the tree.
+SEM _
+  | _ lhs.variables = [(@lhs.scopeLevel, @name.stname)]
+
+-- Shadowing occurs if a name already occurs in the list of variable names that
+-- have been defined on a higher level than this.
+SEM _
+  | _ lhs.shadowing = @name.stname `elem` [y | (y, x) <- @lhs.variables, @lhs.scopeLevel < x]
+-}

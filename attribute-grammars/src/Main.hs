@@ -68,7 +68,7 @@ compile fullName =
         -- The code that should be executed you should put in
         -- StaticAnalysis/
         -- Phase 4: Static checking
-        (nrOfLeaves, letDepth, emptyClasses) <-
+        (nrOfLeaves, letDepth, emptyClasses, shadowingVariables) <-
             doPhaseWithExit 20 (const "S") compileOptions $
                phaseStaticChecks fullName resolvedModule importEnvs options
 
@@ -76,7 +76,9 @@ compile fullName =
         putStrLn "Report:"
         putStrLn ("* Number of ast leaves: " ++ show nrOfLeaves)
         putStrLn ("* Maximum let depth: "    ++ show letDepth)
-        putStrLn ("* Empty classes: " ++ show emptyClasses)
+
+        mapM_ noInstanceDeclaredWarning emptyClasses
+        mapM_ variableShadowingWarning shadowingVariables
 
 
         putStrLn "....any other stuff you will be computing..."
@@ -91,4 +93,8 @@ stopCompilingIf bool = when bool (exitWith (ExitFailure 1))
 
 noInstanceDeclaredWarning :: String -> IO ()
 noInstanceDeclaredWarning str =
-  putStrLn $ "No instance declared for class " ++ str
+  putStrLn $ "Warning: No instance declared for class " ++ str
+
+variableShadowingWarning :: String -> IO ()
+variableShadowingWarning str =
+  putStrLn $ "Warning: There is shadowing on variable " ++ str
