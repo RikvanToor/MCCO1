@@ -12,7 +12,7 @@ import Types (TpScheme)
 -- an integer, counting the number of nodes in the ast.
 phaseStaticChecks :: 
    String -> Module -> [ImportEnvironment] -> [Option] -> 
-   Phase Error Int
+   Phase Error ([String], Int)
 phaseStaticChecks fullName module_ importEnvs options = do
     enterNewPhase "Static checking" options
 
@@ -25,6 +25,9 @@ phaseStaticChecks fullName module_ importEnvs options = do
             SC.baseName_Inh_Module = baseName 
         }
 
+        size = SC.nrOfLeaves_Syn_Module res
+        keywords = SC.reservedWords_Syn_Module res
+
     -- At this point, we just return the size. Not checking for errors yet,
     -- so we are always right.
-    return (Right (SC.nrOfLeaves_Syn_Module res))
+    return (Right (keywords, size))

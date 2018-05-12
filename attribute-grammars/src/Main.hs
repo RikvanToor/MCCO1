@@ -65,13 +65,15 @@ compile fullName =
         -- The code that should be executed you should put in 
         -- StaticAnalysis/
         -- Phase 4: Static checking
-        nrOfLeaves <-
+        (keywords, nrOfLeaves) <-
             doPhaseWithExit 20 (const "S") compileOptions $
                phaseStaticChecks fullName resolvedModule importEnvs options
                
                
         putStrLn "Report:"       
         putStrLn ("* Number of ast leaves: " ++ show nrOfLeaves)
+
+        putStrLn("* Used keywords: " ++ show keywords)
         
         putStrLn "....any other stuff you will be computing..."
         
