@@ -181,3 +181,80 @@ SEM Declaration
 
 SEM Module
    | Module     lhs.typeDecls = M.toList $ M.filter ((>1) . length) $ foldr (uncurry $ M.insertWith (++)) M.empty @body.typeDecls
+
+{
+data Rosetree a = Node a [Rosetree a]
+  deriving Show
+
+instance Functor Rosetree where
+  fmap f (Node a ns) = Node (f a) (map (fmap f) ns)
+}
+
+-- Opgave F
+ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
+     Statement Statements Qualifier Qualifiers
+     Alternative Alternatives Constructor Constructors
+     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
+     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ level : Int | | variables USE {(++)} {[]} : {[(String,Int)]} ]
+                                                                      
+
+SEM Module
+  | Module    body.level = 0
+              lhs.level  = 0
+
+SEM Body
+  | Body      declarations.level       = @lhs.level + 1
+              importdeclarations.level = @lhs.level + 1
+
+SEM Declarations
+  | Cons      hd.level = @lhs.level
+              tl.level = @lhs.level
+
+SEM ImportDeclarations
+  | Cons      hd.level = @lhs.level
+              tl.level = @lhs.level
+
+SEM Declaration
+  | Class            context.level       = @lhs.level + 1
+                     where.level         = @lhs.level + 1
+  | Instance         context.level       = @lhs.level + 1
+                     where.level         = @lhs.level + 1
+  | FunctionBindings bindings.level      = @lhs.level + 1
+  | PatternBinding   pattern.level       = @lhs.level + 1
+                     righthandside.level = @lhs.level + 1
+
+SEM ImportDeclaration
+  | Import     importspecification.level = @lhs.level
+
+SEM ContextItems
+  | Cons       hd.level = @lhs.level
+               tl.level = @lhs.level
+
+SEM MaybeDeclarations
+  | Just       declarations.level = @lhs.level
+
+SEM FunctionBindings
+  | Cons       hd.level = @lhs.level
+               tl.level = @lhs.level
+
+SEM Patterns
+  | Cons       hd.level = @lhs.level
+               tl.level = @lhs.level
+
+SEM Pattern
+  | Constructor       patterns.level     = @lhs.level + 1
+  | Parenthesized     pattern.level      = @lhs.level + 1
+  | InfixConstructor  leftPattern.level  = @lhs.level + 1
+                      rightPattern.level = @lhs.level + 1
+  | List              patterns.level     = @lhs.level + 1
+  | Tuple             patterns.level     = @lhs.level + 1
+  | Record            recordPatternBindings.level = @lhs.level + 1
+  | As                pattern.level      = @lhs.level + 1
+  | Irrefutable       pattern.level      = @lhs.level + 1
+
+SEM RightHandSide
+  | Expression        expression.level   = @lhs.level + 1
+                      where.level        = @lhs.level + 1
+  | Guarded           guardedexpressions.level = @lhs.level + 1
+                      where.level        = @lhs.level + 1
