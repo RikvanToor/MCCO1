@@ -71,7 +71,7 @@ compile fullName =
         -- StaticAnalysis/
         -- Phase 4: Static checking
 
-        (nrOfLeaves, letDepth, keywords, emptyClasses, typeDecls, variables, shadowing) <-
+        (nrOfLeaves, letDepth, keywords, emptyClasses, typeDecls, variables, shadowing, samelevelshadowing) <-
             doPhaseWithExit 20 (const "S") compileOptions $
                phaseStaticChecks fullName resolvedModule importEnvs options
 
@@ -84,27 +84,35 @@ compile fullName =
         putStrLn ("* Empty classes: " ++ show emptyClasses)
         printTypeDecls typeDecls
 
-        -- hPutStrLn stderr("* Variables for debugging: " ++ show variables)
+        hPutStrLn stderr("* Variables for debugging: " ++ show variables)
         --
         putStrLn (if shadowing then "* There is shadowing" else "There is no shadowing")
+        printSameLevelShadowing samelevelshadowing
 
         putStrLn "Done now"
 
         --unless (NoWarnings `elem` options) $
         --    showMessages staticWarnings
 
+printDeclaration :: (String, [(String, Int)]) -> IO ()
+printDeclaration (n, ds) = do
+                putStrLn $ "  * " ++ n ++ " is declared at:"
+                let q :: (String, Int) -> IO ()
+                    q (f, l) = do
+                    putStrLn $ "    - " ++ f ++ " on line " ++ (show l)
+                mapM_ q ds
+
 printTypeDecls :: [(String, [(String, Int)])] -> IO ()
 printTypeDecls [] = putStrLn ("* No double type declarations")
 printTypeDecls xs = do
     putStrLn "* Error: Types are declared multiple times:"
-    let p :: (String, [(String, Int)]) -> IO ()
-        p (n, ds) = do
-            putStrLn $ "  * " ++ n ++ " is declared at:"
-            mapM_ q ds
-        q :: (String, Int) -> IO ()
-        q (f, l) = do
-            putStrLn $ "    - " ++ f ++ " on line " ++ (show l)
-    mapM_ p xs
+    mapM_ printDeclaration xs
+
+printSameLevelShadowing :: [(String, [(String, Int)])] -> IO ()
+printSameLevelShadowing [] = putStrLn ("* No same level shadowing")
+printSameLevelShadowing xs = do
+    putStrLn "* Error: Same level shadowing:"
+    mapM_ printDeclaration xs
 
 stopCompilingIf :: Bool -> IO ()
 stopCompilingIf bool = when bool (exitWith (ExitFailure 1))

@@ -212,7 +212,7 @@ ATTR Module Body Declarations Declaration Expressions Expression Patterns Patter
      Alternative Alternatives Constructor Constructors
      GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
      LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
-     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | variables USE {(++)} {[]} : {[Rosetree [String]]} ]
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | variables USE {(++)} {[]} : {[Rosetree [(String, (String, Int))]]} ]
 
 
 {
@@ -227,7 +227,7 @@ SEM FunctionBindings
   | Nil        lhs.variables = []
 
 SEM Pattern
-  | Variable          lhs.variables = [Node [@name.stname] []]
+  | Variable          lhs.variables = [Node [(@name.stname, head @range.info)] []]
 
 SEM FunctionBinding
   | FunctionBinding    lhs.variables = case combineTrees @lefthandside.variables of
@@ -235,6 +235,9 @@ SEM FunctionBinding
                                             ((Node x xs) : _) -> case xs of [] -> [Node x @righthandside.variables];
                                                                             ((Node y ys):_) -> [Node x [Node y (ys ++ @righthandside.variables)]]
 {
+nodevalue :: Rosetree a -> a
+nodevalue (Node a _) = a
+
 nodebranches :: Rosetree a -> [Rosetree a]
 nodebranches (Node _ as) = as
 
@@ -248,13 +251,20 @@ flatten (Node a as) = concat (a : (map flatten as))
 
 hasShadowing :: Eq a => Rosetree [a] -> Bool
 hasShadowing (Node a as) = (any hasShadowing as) || (any (`elem` (concatMap flatten as)) a)
+
+filterDups :: Eq a => Rosetree [(a, b)] -> [(a,[b])]
+filterDups (Node x xs) = (map helper $ (filter ((>= 2) . length) . (groupBy (\a b -> fst a == fst b))) x) ++ (concatMap filterDups $ combineTrees xs)
+      where helper ys@(y:_) = (fst y, map snd ys)
+            helper [] = undefined
 }
 
 
 SEM LeftHandSide
-  | Function   lhs.variables = [Node [@name.stname]  (combineTrees @patterns.variables) ]
+  | Function   lhs.variables = [Node [(@name.stname, head @range.info)]  (combineTrees @patterns.variables) ]
 
 ATTR Module SYN hasshadowing : Bool
+            SYN sameLevelShadowing : {[(String, [(String,Int)])]}
 
 SEM Module
-  | Module     lhs.hasshadowing = any hasShadowing (concatMap nodebranches @body.variables)
+  | Module     lhs.hasshadowing = any hasShadowing (concatMap nodebranches @body.variables) 
+               lhs.sameLevelShadowing = concatMap filterDups @body.variables
