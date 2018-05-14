@@ -11,13 +11,16 @@ import Types (TpScheme)
 import qualified Data.Set as S
 import Data.Set (Set)
 
+import qualified Data.Tree as T
+import Data.Tree (Tree)
+
 -- The ouput of this function tells you what the synthesized/chained
 -- attributes we are in fact interested in. At this point, that is simply
 -- an integer, counting the number of nodes in the ast.
 
 phaseStaticChecks ::
    String -> Module -> [ImportEnvironment] -> [Option] ->
-   Phase Error (Int, Int, [String], Set String, [(String,[(String,Int)])], [Rosetree [String]], Bool)
+   Phase Error (Int, Int, [String], Set String, [(String,[(String,Int)])], [Tree [(String, (String, Int))]], Bool, [(String, [(String, Int)])])
 phaseStaticChecks fullName module_ importEnvs options = do
     enterNewPhase "Static checking" options
 
@@ -37,7 +40,8 @@ phaseStaticChecks fullName module_ importEnvs options = do
         typeDecls = SC.typeDecls_Syn_Module res
         variables = SC.variables_Syn_Module res
         shadowing = SC.hasshadowing_Syn_Module res
+        samelevelshadowing = SC.sameLevelShadowing_Syn_Module res
 
     -- At this point, we just return the size. Not checking for errors yet,
     -- so we are always right.
-    return (Right (size, letDepth, keywords, emptyClasses, typeDecls, variables, shadowing))
+    return (Right (size, letDepth, keywords, emptyClasses, typeDecls, variables, shadowing, samelevelshadowing))
