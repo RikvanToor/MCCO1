@@ -49,3 +49,6 @@ f :: Tree a -> Int
 f a = case [2] of
     (a:as) -> 1
     _      -> 2
+
+type Test = String
+type Test = Int
