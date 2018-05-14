@@ -112,7 +112,6 @@ SEM Declaration
 SEM Expression
   | Let lhs.letDepth = 1 + max @expression.letDepth @declarations.letDepth
 
-
 SEM SimpleType
   | SimpleType lhs.stname = @name.stname
 
@@ -133,11 +132,21 @@ SEM MaybeName
    | Just     lhs.reservedWordsAs = ["as"]
 
 SEM ImportDeclaration
-   | Import   lhs.reservedWords = "import" : (if @qualified then ["qualified"] else []) ++ (@asname.reservedWordsAs) --TODO hiding
+  | Import
+    lhs.reservedWords = "import" : (if @qualified then ["qualified"] else []) ++ (@asname.reservedWordsAs) ++ @importspecification.reservedWords
+
+SEM MaybeImportSpecification
+  | Nothing lhs.reservedWords = []
+  | Just    lhs.reservedWords = @importspecification.reservedWords
+
+SEM ImportSpecification
+  | Import lhs.reservedWords = if @hiding then ["hiding"] else []
 
 SEM Declaration
    | Type     lhs.reservedWords = "type" : (@type.reservedWords)
-   | Data     lhs.reservedWords = "data" : (@context.reservedWords) ++ (@constructors.reservedWords) -- ++ (case @derivings of [] -> []; _ -> ["deriving"]) --TODO. Can't figure out how to pattern match on those lists. UUAGC docs are down atm.
+   | Data     lhs.reservedWords = "data" : (@context.reservedWords) ++ (@constructors.reservedWords)
+
+   -- ++ (case @derivings of [] -> []; _ -> ["deriving"]) --TODO. Can't figure out how to pattern match on those lists. UUAGC docs are down atm.
    | Newtype  lhs.reservedWords = "newtype" : (@context.reservedWords) ++ (@constructor.reservedWords) -- ++ (@derivings.reservedWordsDerivings)
    | Class    lhs.reservedWords = "class" : (@context.reservedWords) ++ (@where.reservedWords)
    | Instance lhs.reservedWords = "instance" : (@context.reservedWords) ++ (@types.reservedWords) ++ (@where.reservedWords)
@@ -157,8 +166,8 @@ SEM Expression
    | Hole     lhs.reservedWords = ["_"]
    | If       lhs.reservedWords = "if" : @guardExpression.reservedWords ++ "then" : @thenExpression.reservedWords ++ "else" : @elseExpression.reservedWords
    | Case     lhs.reservedWords = "case" : @expression.reservedWords ++ "of" : @alternatives.reservedWords
-   | Do       lhs.reservedWords = "do" : @statements.reservedWords
-   | Let      lhs.reservedWords = "let" : @declarations.reservedWords ++ "in" : @expression.reservedWords
+   | Do       lhs.reservedWords = "do"   : @statements.reservedWords
+   | Let      lhs.reservedWords = "let"  : @declarations.reservedWords ++ "in" : @expression.reservedWords
 
 -- Opgave E
 
