@@ -83,8 +83,10 @@ compile fullName =
         putStrLn("* Used keywords: " ++ show keywords)
         putStrLn ("* Empty classes: " ++ show emptyClasses)
         printTypeDecls typeDecls
-        hPutStrLn stderr("* Variables for debugging: " ++ show variables)
-        putStrLn ("* Contains shadowing: " ++ show shadowing)
+
+        -- hPutStrLn stderr("* Variables for debugging: " ++ show variables)
+        --
+        putStrLn (if shadowing then "* There is shadowing" else "There is no shadowing")
 
         putStrLn "Done now"
 

@@ -25,74 +25,88 @@ import Data.Char ( isUpper )
 
 INCLUDE "UHA_Syntax.ag"
 
-ATTR Module
-   [ baseName              : String
-     importEnvironments    : ImportEnvironments
-   |
-   | collectEnvironment    : ImportEnvironment
-     errors                : Errors
-     typeSignatures        : {[(Name,TpScheme)]}
-     warnings              : Warnings
-   ]
-
-ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
-     Statement Statements Qualifier Qualifiers
-     Alternative Alternatives Constructor Constructors
-     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
-     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
-     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | nrOfLeaves USE {(+)} {1} : Int ]
+ATTR
+  Module
+  [ baseName              : String
+    importEnvironments    : ImportEnvironments
+  |
+  | collectEnvironment    : ImportEnvironment
+    errors                : Errors
+    typeSignatures        : {[(Name,TpScheme)]}
+    warnings              : Warnings
+  ]
 
 -- Opgave B, letDepth
-ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
-     Statement Statements Qualifier Qualifiers
-     Alternative Alternatives Constructor Constructors
-     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
-     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
-     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | letDepth USE {(+)} {0} : Int ]
+ATTR
+  Module Body Declarations Declaration Expressions Expression Patterns Pattern
+  Statement Statements Qualifier Qualifiers Alternative Alternatives Constructor
+  Constructors GuardedExpressions GuardedExpression FunctionBinding
+  FunctionBindings LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
+  Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems
+  [
+  |
+  | letDepth   USE {(+)} {0} : Int
+    nrOfLeaves USE {(+)} {1} : Int
+  ]
 
 -- Opgave C, reservedWords
-ATTR Module Body Declarations Declaration Fixity Expressions Expression Patterns Pattern
-     Statement Statements Qualifier Qualifiers
-     Alternative Alternatives Constructor Constructors
-     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
-     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
-     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems ImportDeclaration [ | | reservedWords USE {(++)}  {[]} : {[String]} ]
+ATTR
+  Module Body Declarations Declaration Fixity Expressions Expression Patterns
+  Pattern Statement Statements Qualifier Qualifiers Alternative Alternatives
+  Constructor Constructors GuardedExpressions GuardedExpression FunctionBinding
+  FunctionBindings LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
+  Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems
+  ImportDeclaration ImportDeclarations MaybeImportSpecification
+  ImportSpecification
+  [
+  |
+  | reservedWords USE {(++)}  {[]} : {[String]}
+  ]
 
 -- Opgave D, list of type classes
-ATTR Module Body Declarations Declaration
-     Statement Statements Qualifier Qualifiers
-     Alternative Alternatives
-     FunctionBinding FunctionBindings
-     RightHandSide MaybeDeclarations
-     [ | | usedInstances USE {S.union} {S.empty} : {Set String}]
+ATTR
+  Module Body Declarations Declaration Statement Statements Qualifier Qualifiers
+  Alternative Alternatives FunctionBinding FunctionBindings RightHandSide
+  MaybeDeclarations
+  [
+  |
+  | usedInstances USE {S.union} {S.empty} : {Set String}
+    definedClasses USE {S.union} {S.empty} : {Set String}
+  ]
 
-ATTR Module Body Declarations Declaration
-     Statement Statements Qualifier Qualifiers
-     Alternative Alternatives
-     FunctionBinding FunctionBindings
-     RightHandSide MaybeDeclarations
-     [ | | definedClasses USE {S.union} {S.empty} : {Set String}]
+ATTR
+  Module
+  [
+  |
+  | emptyClasses : {Set String}
+  ]
 
-ATTR Module [ | | emptyClasses : {Set String} ]
-
-ATTR SimpleType Name [ | | stname : String ]
+ATTR
+  SimpleType Name
+  [
+  |
+  | stname : String
+  ]
 
 -- Opgave E, multiple type declarations
-ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
-     Statement Statements Qualifier Qualifiers
-     Alternative Alternatives Constructor Constructors
-     GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
-     LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
-     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | typeDecls USE {(++)} {[]} : {[(String,[(String,Int)])]} ]
-
-
+ATTR
+  Module Body Declarations Declaration Expressions Expression Patterns Pattern
+  Statement Statements Qualifier Qualifiers Alternative Alternatives Constructor
+  Constructors GuardedExpressions GuardedExpression FunctionBinding
+  FunctionBindings LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
+  Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems
+  [
+  |
+  | typeDecls USE {(++)} {[]} : {[(String,[(String,Int)])]}
+  ]
 
 SEM Module
-   | Module     lhs.errors   = []
-                   .warnings = []
-                   .typeSignatures = []
-                   .collectEnvironment = head (@lhs.importEnvironments)
-                   .emptyClasses = @body.definedClasses `S.difference` @body.usedInstances
+  | Module
+    lhs.errors             = []
+       .warnings           = []
+       .typeSignatures     = []
+       .collectEnvironment = head (@lhs.importEnvironments)
+       .emptyClasses       = @body.definedClasses `S.difference` @body.usedInstances
 
 SEM Declarations
   | Cons lhs.letDepth = max @hd.letDepth @tl.letDepth
