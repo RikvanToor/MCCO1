@@ -86,7 +86,8 @@ compile fullName =
 
         printTypeDecls typeDecls
 
-        hPutStrLn stderr("* Variables for debugging: " ++ show variables)
+        -- Prints all variables
+        -- hPutStrLn stderr("* Variables for debugging: " ++ show variables)
         --
         putStrLn (if shadowing then "* There is shadowing" else "There is no shadowing")
         printSameLevelShadowing samelevelshadowing

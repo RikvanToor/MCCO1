@@ -20,7 +20,7 @@ import Data.Tree (Tree)
 
 phaseStaticChecks ::
    String -> Module -> [ImportEnvironment] -> [Option] ->
-   Phase Error (Int, Int, [String], Set String, [(String,[(String,Int)])], [Tree [String]], Bool, [(String, [(String, Int)])])
+   Phase Error (Int, Int, [String], Set String, [(String,[(String,Int)])], [Tree [(String, (String, Int))]], Bool, [(String, [(String, Int)])])
 phaseStaticChecks fullName module_ importEnvs options = do
     enterNewPhase "Static checking" options
 

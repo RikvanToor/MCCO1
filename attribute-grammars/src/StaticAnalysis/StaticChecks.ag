@@ -184,7 +184,7 @@ ATTR
   Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems
   [
   |
-  | variables USE {(++)} {[]} : {[Tree [String]]}
+  | variables USE {(++)} {[]} : {[Tree [(String, (String, Int))]]}
   ]
 
 {------------------------------------------------------------------------------}
@@ -319,7 +319,7 @@ SEM FunctionBinding
                                ((T.Node y ys):_) -> [T.Node x [T.Node y (ys ++ @righthandside.variables)]]
 SEM LeftHandSide
   | Function
-    lhs.variables = [T.Node [@name.stname]  (combineTrees @patterns.variables) ]
+    lhs.variables = [T.Node [(@name.stname, head @range.info)]  (combineTrees @patterns.variables) ]
 
 
 {
@@ -335,20 +335,14 @@ combineTrees ((T.Node hs1 ts1):(T.Node hs2 ts2):ts) =
 hasShadowing :: Eq a => Tree [a] -> Bool
 hasShadowing (T.Node a as) = (any hasShadowing as) || (any (`elem` (concatMap T.flatten as)) [a])
 
-filterDups :: Eq a => Rosetree [(a, b)] -> [(a,[b])]
-filterDups (Node x xs) = (map helper $ (filter ((>= 2) . length) . (groupBy (\a b -> fst a == fst b))) x) ++ (concatMap filterDups $ combineTrees xs)
+filterDups :: Eq a => Tree [(a, b)] -> [(a,[b])]
+filterDups (T.Node x xs) = (map helper $ (filter ((>= 2) . length) . (groupBy (\a b -> fst a == fst b))) x) ++ (concatMap filterDups $ combineTrees xs)
       where helper ys@(y:_) = (fst y, map snd ys)
             helper [] = undefined
 }
 
-
-SEM LeftHandSide
-  | Function   lhs.variables = [Node [(@name.stname, head @range.info)]  (combineTrees @patterns.variables) ]
-
-ATTR Module SYN hasshadowing : Bool
-            SYN sameLevelShadowing : {[(String, [(String,Int)])]}
+ATTR Module SYN sameLevelShadowing : {[(String, [(String,Int)])]}
 
 SEM Module
-  | Module     lhs.hasshadowing = any hasShadowing (concatMap T.subForest @body.variables) 
-               lhs.sameLevelShadowing = concatMap filterDups @body.variables
+  | Module     lhs.sameLevelShadowing = concatMap filterDups @body.variables
 
