@@ -47,5 +47,5 @@ type Tree a = Nil
 
 f :: Tree a -> Int
 f a = case [2] of
-    (a:as) -> 1
+    (a:a) -> 1
     _      -> 2
