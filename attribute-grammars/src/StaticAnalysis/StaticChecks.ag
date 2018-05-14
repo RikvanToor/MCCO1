@@ -106,7 +106,7 @@ SEM Declaration
                  .definedClasses = S.singleton (@simpletype.stname)
   | Instance  lhs.nrOfLeaves = 0
                  .usedInstances = S.singleton (@name.stname)
-                 
+
 
 -- Opgave B
 SEM Expression
@@ -190,13 +190,13 @@ ATTR Module Body Declarations Declaration Expressions Expression Patterns Patter
      GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
      LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
      Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | variables USE {(++)} {[]} : {[Rosetree [String]]} ]
-                                                                    
+
 
 {
 removeDuplicates :: Eq a => [a] -> [a]
 removeDuplicates = foldl (\seen x -> if x `elem` seen
                                       then seen
-                                      else seen ++ [x]) []
+                                      else x:seen) []
 }
 
 SEM FunctionBindings
@@ -207,8 +207,8 @@ SEM Pattern
   | Variable          lhs.variables = [Node [@name.stname] []]
 
 SEM FunctionBinding
-  | FunctionBinding    lhs.variables = case combineTrees @lefthandside.variables of 
-                                            [] -> []; 
+  | FunctionBinding    lhs.variables = case combineTrees @lefthandside.variables of
+                                            [] -> [];
                                             ((Node x xs) : _) -> case xs of [] -> [Node x @righthandside.variables];
                                                                             ((Node y ys):_) -> [Node x [Node y (ys ++ @righthandside.variables)]]
 {

@@ -18,6 +18,8 @@ import Main.PhaseStaticChecks
 import Main.PhaseResolveOperators
 import Parser.ParseMessage
 
+import System.IO
+
 import qualified Data.Set as S
 import Data.Set (Set)
 
@@ -76,12 +78,12 @@ compile fullName =
 
         putStrLn "Report:"
         putStrLn ("* Number of ast leaves: " ++ show nrOfLeaves)
-        
+
         putStrLn ("* Maximum let depth: "    ++ show letDepth)
         putStrLn("* Used keywords: " ++ show keywords)
         putStrLn ("* Empty classes: " ++ show emptyClasses)
         printTypeDecls typeDecls
-        putStrLn ("* Variables for debugging: " ++ show variables)
+        hPutStrLn stderr("* Variables for debugging: " ++ show variables)
         putStrLn ("* Contains shadowing: " ++ show shadowing)
 
         putStrLn "Done now"
