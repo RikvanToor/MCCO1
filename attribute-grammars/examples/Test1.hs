@@ -36,3 +36,16 @@ constructornr x =
     _   -> 1
 
 
+f :: Bool -> IO Int
+f True = return 3
+f False = return 17
+
+test :: Int -> Int -> Int
+test x = \x -> 3
+
+type Tree a = Nil
+
+f :: Tree a -> Int
+f a = case [2] of
+    (a:as) -> 1
+    _      -> 2

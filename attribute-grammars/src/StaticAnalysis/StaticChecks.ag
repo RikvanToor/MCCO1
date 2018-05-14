@@ -182,13 +182,6 @@ SEM Declaration
 SEM Module
    | Module     lhs.typeDecls = M.toList $ M.filter ((>1) . length) $ foldr (uncurry $ M.insertWith (++)) M.empty @body.typeDecls
 
-{
-data Rosetree a = Node a [Rosetree a]
-  deriving Show
-
-instance Functor Rosetree where
-  fmap f (Node a ns) = Node (f a) (map (fmap f) ns)
-}
 
 -- Opgave F
 ATTR Module Body Declarations Declaration Expressions Expression Patterns Pattern
@@ -196,65 +189,49 @@ ATTR Module Body Declarations Declaration Expressions Expression Patterns Patter
      Alternative Alternatives Constructor Constructors
      GuardedExpressions GuardedExpression FunctionBinding FunctionBindings
      LeftHandSide RightHandSide MaybeDeclarations MaybeExpression
-     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ level : Int | | variables USE {(++)} {[]} : {[(String,Int)]} ]
-                                                                      
+     Type Types AnnotatedType AnnotatedTypes ContextItem ContextItems [ | | variables USE {(++)} {[]} : {[Rosetree [String]]} ]
+                                                                    
 
-SEM Module
-  | Module    body.level = 0
-              lhs.level  = 0
-
-SEM Body
-  | Body      declarations.level       = @lhs.level + 1
-              importdeclarations.level = @lhs.level + 1
-
-SEM Declarations
-  | Cons      hd.level = @lhs.level
-              tl.level = @lhs.level
-
-SEM ImportDeclarations
-  | Cons      hd.level = @lhs.level
-              tl.level = @lhs.level
-
-SEM Declaration
-  | Class            context.level       = @lhs.level + 1
-                     where.level         = @lhs.level + 1
-  | Instance         context.level       = @lhs.level + 1
-                     where.level         = @lhs.level + 1
-  | FunctionBindings bindings.level      = @lhs.level + 1
-  | PatternBinding   pattern.level       = @lhs.level + 1
-                     righthandside.level = @lhs.level + 1
-
-SEM ImportDeclaration
-  | Import     importspecification.level = @lhs.level
-
-SEM ContextItems
-  | Cons       hd.level = @lhs.level
-               tl.level = @lhs.level
-
-SEM MaybeDeclarations
-  | Just       declarations.level = @lhs.level
+{
+removeDuplicates :: Eq a => [a] -> [a]
+removeDuplicates = foldl (\seen x -> if x `elem` seen
+                                      then seen
+                                      else seen ++ [x]) []
+}
 
 SEM FunctionBindings
-  | Cons       hd.level = @lhs.level
-               tl.level = @lhs.level
-
-SEM Patterns
-  | Cons       hd.level = @lhs.level
-               tl.level = @lhs.level
+  | Cons       lhs.variables = removeDuplicates (@hd.variables ++ @tl.variables)
+  | Nil        lhs.variables = []
 
 SEM Pattern
-  | Constructor       patterns.level     = @lhs.level + 1
-  | Parenthesized     pattern.level      = @lhs.level + 1
-  | InfixConstructor  leftPattern.level  = @lhs.level + 1
-                      rightPattern.level = @lhs.level + 1
-  | List              patterns.level     = @lhs.level + 1
-  | Tuple             patterns.level     = @lhs.level + 1
-  | Record            recordPatternBindings.level = @lhs.level + 1
-  | As                pattern.level      = @lhs.level + 1
-  | Irrefutable       pattern.level      = @lhs.level + 1
+  | Variable          lhs.variables = [Node [@name.stname] []]
 
-SEM RightHandSide
-  | Expression        expression.level   = @lhs.level + 1
-                      where.level        = @lhs.level + 1
-  | Guarded           guardedexpressions.level = @lhs.level + 1
-                      where.level        = @lhs.level + 1
+SEM FunctionBinding
+  | FunctionBinding    lhs.variables = case combineTrees @lefthandside.variables of 
+                                            [] -> []; 
+                                            ((Node x xs) : _) -> case xs of [] -> [Node x @righthandside.variables];
+                                                                            ((Node y ys):_) -> [Node x [Node y (ys ++ @righthandside.variables)]]
+{
+nodebranches :: Rosetree a -> [Rosetree a]
+nodebranches (Node _ as) = as
+
+combineTrees :: [Rosetree [a]] -> [Rosetree [a]]
+combineTrees []  = []
+combineTrees [r] = [r]
+combineTrees ((Node hs1 ts1):(Node hs2 ts2):ts) = combineTrees $ (Node (hs1++hs2) (ts1++ts2)) : ts
+
+flatten :: Rosetree [a] -> [a]
+flatten (Node a as) = concat (a : (map flatten as))
+
+hasShadowing :: Eq a => Rosetree [a] -> Bool
+hasShadowing (Node a as) = (any hasShadowing as) || (any (`elem` (concatMap flatten as)) a)
+}
+
+
+SEM LeftHandSide
+  | Function   lhs.variables = [Node [@name.stname]  (combineTrees @patterns.variables) ]
+
+ATTR Module SYN hasshadowing : Bool
+
+SEM Module
+  | Module     lhs.hasshadowing = any hasShadowing (concatMap nodebranches @body.variables)

@@ -3,6 +3,7 @@ module Main.PhaseStaticChecks(phaseStaticChecks) where
 import Main.CompileUtils
 import Utils.Warnings(Warning)
 import Utils.Messages
+import Utils.Utils
 import qualified StaticAnalysis.StaticChecks as SC
 import Syntax.UHA_Syntax (Name)
 import Types (TpScheme)
@@ -16,7 +17,7 @@ import Data.Set (Set)
 
 phaseStaticChecks ::
    String -> Module -> [ImportEnvironment] -> [Option] ->
-   Phase Error (Int, Int, [String], Set String, [(String,[(String,Int)])], [(String,Int)])
+   Phase Error (Int, Int, [String], Set String, [(String,[(String,Int)])], [Rosetree [String]], Bool)
 phaseStaticChecks fullName module_ importEnvs options = do
     enterNewPhase "Static checking" options
 
@@ -35,7 +36,8 @@ phaseStaticChecks fullName module_ importEnvs options = do
         emptyClasses = SC.emptyClasses_Syn_Module res
         typeDecls = SC.typeDecls_Syn_Module res
         variables = SC.variables_Syn_Module res
+        shadowing = SC.hasshadowing_Syn_Module res
 
     -- At this point, we just return the size. Not checking for errors yet,
     -- so we are always right.
-    return (Right (size, letDepth, keywords, emptyClasses, typeDecls, variables))
+    return (Right (size, letDepth, keywords, emptyClasses, typeDecls, variables, shadowing))

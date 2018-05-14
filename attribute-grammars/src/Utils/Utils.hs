@@ -111,3 +111,9 @@ readSourceFile fullName =
 maxInt, minInt :: Integer
 maxInt = 1073741823
 minInt = -1073741823
+
+data Rosetree a = Node a [Rosetree a]
+  deriving (Show, Eq)
+
+instance Functor Rosetree where
+  fmap f (Node a ns) = Node (f a) (map (fmap f) ns)
