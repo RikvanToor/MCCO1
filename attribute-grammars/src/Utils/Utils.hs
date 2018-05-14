@@ -33,7 +33,7 @@ commaList (x:xs) = x ++ ", " ++ commaList xs
 -------------------------------------------------------
 -- Tuples
 -------------------------------------------------------
-                
+
 fst3 :: (a, b, c) -> a
 fst3 (a,_,_)   = a
 
@@ -73,47 +73,41 @@ indexOf = elemIndex
 {--- Returns the index of the last occurrence of the given element in the given list -}
 lastIndexOf :: Eq a => a -> [a] -> Maybe Int
 lastIndexOf x xs =
-    case indexOf x (reverse xs) of    
+    case indexOf x (reverse xs) of
         Nothing     ->  Nothing
         Just idx    ->  Just (length xs - idx - 1)
-   
+
 combinePathAndFile :: String -> String -> String
 combinePathAndFile path file =
-    case path of 
+    case path of
         "" -> file
         _  -> path ++ [pathSeparator] ++ file
-        
+
 -- Split file name
 -- e.g. /docs/haskell/Hello.hs =>
 --   filePath = /docs/haskell  baseName = Hello  ext = hs
 splitFilePath :: String -> (String, String, String)
-splitFilePath filePath = 
+splitFilePath filePath =
     let slashes = "\\/"
         (revFileName, revPath) = span (`notElem` slashes) (reverse filePath)
         (baseName, ext)  = span (/= '.') (reverse revFileName)
     in (reverse revPath, baseName, dropWhile (== '.') ext)
-    
+
 readSourceFile :: String -> IO String
-readSourceFile fullName = 
+readSourceFile fullName =
     CE.catch (
-    withFile fullName ReadMode $ \h1 -> do               
+    withFile fullName ReadMode $ \h1 -> do
          hSetBinaryMode h1 True
          contents <- hGetContents h1
          -- Without evaluate everything breaks down.
          src <- CE.evaluate contents
          _ <- CE.evaluate (length src) -- For some reason I need to put this here too. Don't know why.
          return src)
-    (\ioErr -> 
-         let message = "Unable to read file " ++ show fullName 
+    (\ioErr ->
+         let message = "Unable to read file " ++ show fullName
                     ++ " (" ++ show (ioErr :: CE.IOException) ++ ")"
          in throw message)
-         
+
 maxInt, minInt :: Integer
 maxInt = 1073741823
 minInt = -1073741823
-
-data Rosetree a = Node a [Rosetree a]
-  deriving (Show, Eq)
-
-instance Functor Rosetree where
-  fmap f (Node a ns) = Node (f a) (map (fmap f) ns)

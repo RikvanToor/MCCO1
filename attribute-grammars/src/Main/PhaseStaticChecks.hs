@@ -11,13 +11,16 @@ import Types (TpScheme)
 import qualified Data.Set as S
 import Data.Set (Set)
 
+import qualified Data.Tree as T
+import Data.Tree (Tree)
+
 -- The ouput of this function tells you what the synthesized/chained
 -- attributes we are in fact interested in. At this point, that is simply
 -- an integer, counting the number of nodes in the ast.
 
 phaseStaticChecks ::
    String -> Module -> [ImportEnvironment] -> [Option] ->
-   Phase Error (Int, Int, [String], Set String, [(String,[(String,Int)])], [Rosetree [String]], Bool)
+   Phase Error (Int, Int, [String], Set String, [(String,[(String,Int)])], [Tree [String]], Bool)
 phaseStaticChecks fullName module_ importEnvs options = do
     enterNewPhase "Static checking" options
 

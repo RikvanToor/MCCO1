@@ -80,8 +80,10 @@ compile fullName =
         putStrLn ("* Number of ast leaves: " ++ show nrOfLeaves)
 
         putStrLn ("* Maximum let depth: "    ++ show letDepth)
-        putStrLn("* Used keywords: " ++ show keywords)
-        putStrLn ("* Empty classes: " ++ show emptyClasses)
+        putStrLn("* Used keywords: " ++ unwords keywords)
+
+        mapM_ noInstanceDeclaredWarning (S.toList emptyClasses)
+
         printTypeDecls typeDecls
 
         -- hPutStrLn stderr("* Variables for debugging: " ++ show variables)
@@ -111,4 +113,7 @@ stopCompilingIf bool = when bool (exitWith (ExitFailure 1))
 
 noInstanceDeclaredWarning :: String -> IO ()
 noInstanceDeclaredWarning str =
-  putStrLn $ "No instance declared for class " ++ str
+  warning ("No instance declared for class " ++ str)
+
+warning :: String -> IO ()
+warning str = putStrLn ("Warning: " ++ str)
