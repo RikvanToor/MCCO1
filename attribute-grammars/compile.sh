@@ -1,8 +1,8 @@
 #!/bin/bash
 
 set -e # exit on error
-cd src
+pushd src
 make
-cd ..
+popd
 cabal build
 
