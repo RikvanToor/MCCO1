@@ -27,7 +27,7 @@ tested-with:            GHC == 8.2.1
 
 Executable cco-ag
   Build-Depends:     base >= 3 && < 5, containers, mtl, parsec, network, process, transformers, filepath, directory, wl-pprint
-  ghc-options:       -Wall -Wno-unused-imports -Wno-orphans
+  ghc-options:       -Wall -Wno-unused-imports -Wno-orphans -Wno-missing-home-modules
   default-language:  Haskell98
   hs-source-dirs:    src dist/build/autogen/uuagc
   Main-is:           Main.hs

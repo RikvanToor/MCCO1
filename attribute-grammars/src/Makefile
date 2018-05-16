@@ -16,16 +16,16 @@ AG_OPTS = -mscfrw --kennedywarren
 AG_OUT_DIR=../dist/build/autogen/uuagc
 
 # AG sources
-AGSOURCES = \
-     $(AG_OUT_DIR)/Syntax/UHA_Pretty.hs \
-     $(AG_OUT_DIR)/Syntax/UHA_OneLine.hs \
+AGSOURCES =                                       \
+     $(AG_OUT_DIR)/Syntax/UHA_Pretty.hs           \
+     $(AG_OUT_DIR)/Syntax/UHA_OneLine.hs          \
      $(AG_OUT_DIR)/StaticAnalysis/StaticChecks.hs \
-     $(AG_OUT_DIR)/Syntax/UHA_Syntax.hs \
+     $(AG_OUT_DIR)/Syntax/UHA_Syntax.hs           \
      $(AG_OUT_DIR)/Parser/ResolveOperators.hs
 
 ag : $(AGSOURCES)
 
-cleanag : 
+cleanag :
 	$(RM) $(AGSOURCES)
 
 $(AG_OUT_DIR)/Parser/ResolveOperators.hs : \
@@ -56,5 +56,5 @@ $(AG_OUT_DIR)/StaticAnalysis/StaticChecks.hs : \
 $(AG_OUT_DIR)/Syntax/UHA_Syntax.hs : Syntax/UHA_Syntax.ag
 	mkdir -p `dirname $@`
 	# AG UHA_Syntax
-	$(AG) -dmr --module=Syntax.UHA_Syntax Syntax/UHA_Syntax.ag --output=$@        
+	$(AG) -dmr --module=Syntax.UHA_Syntax Syntax/UHA_Syntax.ag --output=$@
 
