@@ -331,9 +331,11 @@ combineTrees [r] = [r]
 combineTrees ((T.Node hs1 ts1):(T.Node hs2 ts2):ts) =
   combineTrees $ (T.Node (hs1++hs2) (ts1++ts2)) : ts
 
+flatten :: Tree [a] -> [a]
+flatten (T.Node a as) = concat (a : (map flatten as))
 
 hasShadowing :: Eq a => Tree [a] -> Bool
-hasShadowing (T.Node a as) = (any hasShadowing as) || (any (`elem` (concatMap T.flatten as)) [a])
+hasShadowing (T.Node a as) = (any hasShadowing as) || (any (`elem` (concatMap flatten as)) a)
 
 filterDups :: Eq a => Tree [(a, b)] -> [(a,[b])]
 filterDups (T.Node x xs) = (map helper $ (filter ((>= 2) . length) . (groupBy (\a b -> fst a == fst b))) x) ++ (concatMap filterDups $ combineTrees xs)

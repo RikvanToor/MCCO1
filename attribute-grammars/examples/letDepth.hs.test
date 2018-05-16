@@ -1,0 +1,10 @@
+-- This function has nested let clauses with a depth of 4.
+
+test :: a -> a
+test a = let 
+         b = a
+       in c
+         where 
+           c = let d = b in
+            let e = d in 
+              let f = e in c

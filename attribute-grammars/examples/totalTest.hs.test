@@ -1,3 +1,18 @@
+{- This is a test file in which every function is tested. The results should be:
+* Number of ast leaves: 164
+* Maximum let depth: 2
+* Used keywords: module where class where instance where let in where let in if then else data case of type case of type type
+* Error: Types are declared multiple times:
+  * Test is declared at:
+    - examples/totalTest.hs.test on line 68
+    - examples/totalTest.hs.test on line 69
+* There is shadowing
+* Error: Same level shadowing:
+  * a is declared at:
+    - examples/totalTest.hs.test on line 65
+    - examples/totalTest.hs.test on line 65
+-}
+
 module Test1 where
 
 class Blob a where

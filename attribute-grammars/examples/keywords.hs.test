@@ -1,0 +1,26 @@
+-- This file contains a lot of keywords, that the program should all retrieve.
+
+module Test where           -- module, where
+
+import A hiding (a,b)       -- import, hiding
+
+type Type = Int             -- type
+
+class Class where           -- class, where
+  test :: a -> Int
+  test = 3
+
+instance Class Type where   -- instance, where
+  test = 5
+
+data Tree a =               -- data
+    Node (Tree a) (Tree a)  
+  | Branch a
+
+f :: a -> a
+f a = let b = a in b        -- let, in
+
+not :: Bool -> Bool
+not a = case a of           -- case, of
+    True  -> False
+    False -> True

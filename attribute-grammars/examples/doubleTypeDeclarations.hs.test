@@ -1,0 +1,14 @@
+-- This module contains types "Test" and "Test2" that
+-- both have been declared multiple times.
+
+module TypeDecls where
+
+type Test = Int
+
+type Test = String
+
+type Test = Int
+
+type Test2 = Test
+
+type Test2 = [Int]

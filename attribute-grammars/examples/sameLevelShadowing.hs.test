@@ -1,0 +1,16 @@
+-- This file contains three instances of same level shadowing
+-- That means there are two declarations of some variable at the same level
+-- In that case, it is not clear which declaration should shadow which.
+
+fst :: a -> a -> a -> a
+fst a a = \a -> a
+
+g b = case [2] of
+  (b:b) -> 1
+  _     -> 2
+
+
+h a = do
+    let a = 3
+    let a = 4
+    return a
