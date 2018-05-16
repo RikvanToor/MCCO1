@@ -1,4 +1,6 @@
 -- This program contains shadowing at line 6. The program should report "There is shadowing"
+--
+--
 
 module Shadowing where
 

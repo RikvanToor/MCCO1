@@ -1,5 +1,6 @@
 -- This module contains types "Test" and "Test2" that
 -- both have been declared multiple times.
+--
 
 module TypeDecls where
 
