@@ -95,12 +95,12 @@ function and build the tree structure. In the end, `Module` ends up with the
 entire tree, containing all variables in the program.
 
 The semantics for `hasshadowing` are defined on line 203. This calls a Haskell
-function `hasShadowing`, defined on line 338. The function will walk over the
-tree structure and check whether there is a variable in a lower level that also
-exists on the current level. If so, there is shadowing. Note that shadowing for
-function declaration is not checked in our program. This is because of an issue
-with the AST that we ran into. There is no difference in terms of names in
-declarations between the following two code blocks:
+function `hasShadowing`, defined on line 338. The function will traverse the
+tree and check for each node $n$ whether there exists a variable in a one of the
+subforests that also exists on $n$. If so, then there is shadowing. Note that
+shadowing for function declaration is not checked in our program. This is
+because of an issue with the AST that we ran into. There is no difference in
+terms of names in declarations between the following two code blocks:
 
 ```haskell
 f :: a -> a
