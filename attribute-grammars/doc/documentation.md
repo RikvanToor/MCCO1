@@ -58,6 +58,35 @@ instead of class declarations.
 
 # Exercise E: MultipleTypeDecls
 
-Similar to exercise C, we introduce a synthesized `typeDecls : [(String, [Location])]` on lines 135 to 144. In the type signature, the String stands for the name of a type. `Location` is an alias for `(String, Int)`. In there, the String represents the file in which the type has been declared and the Int represents the line number on which this happens. To actually obtain this information, we introduce another attribute called `decls`, just for `SimpleType` on line 160. The semantics for this attribute can be found at lines 297 to 299. The `decls` function is called from `Type : Declaration` on line 243.
+Similar to exercise C, we introduce a synthesized attribute `typeDecls : [(String, [Location])]` on lines 135 to 144. In the type signature, the String stands for the name of a type. `Location` is an alias for `(String, Int)`. In there, the String represents the file in which the type has been declared and the Int represents the line number on which this happens. To actually obtain this information, we introduce another attribute called `decls`, just for `SimpleType` on line 160. The semantics for this attribute can be found at lines 297 to 299. The `decls` function is called from `Type : Declaration` on line 243.
 
 In the semantics of `Module.typeDecls` on line 202, we group all type declarations together by name and filter out any types that are not declared at least two times. Doing so results in the list of types that have been declared multiple types and therefore are a problem.
+
+# Exercise F: Shadowing
+
+On line 47 we introduce another synthesized attribute `hasshadowing : Bool` for `Module`. We also introduce an attribute `variables : Tree [(String, (String, Int))]` for most of the AST. This will be a [Rosetree](http://hackage.haskell.org/package/containers-0.5.11.0/docs/Data-Tree.html) type that collects all variables that are declared or mentioned throughout the program, grouped by level. The `(String, (String, Int))` stands for (variable name, (file in which the variable is used, line number on which the variable is used)).
+
+The semantics for `variables` are defined on lines 303 to 322. The main idea is that `Pattern.variables` for `Variable` returns the variables information. Other than that, every AST node that can contain such a pattern will call this function and build the tree structure. In the end, `Module` ends up with the entire tree, containing all variables in the program. 
+
+The semantics for `hasshadowing` are defined on line 203. This calls a Haskell function `hasShadowing`, defined on line 338. The function will walk over the tree structure and check whether there is a variable in a lower level that also exists on the current level. If so, there is shadowing. Note that shadowing for function declaration is not checked in our program. This is because of an issue with the AST that we ran into. There is no difference in terms of names in declarations between the following two code blocks:
+
+```haskell
+f :: a -> a
+f a = a
+
+f :: a -> Int
+f _ = 3
+```
+
+and
+
+```haskell
+f :: Bool -> Int
+f True  = 1
+f False = 0
+```
+
+The second example is of course very valid. Because we did not want our program to show a warning for something that is valid code, we decided not to report shadowing on the top level.
+
+# Exercise G: SameLevelShadowing
+
