@@ -93,3 +93,17 @@ f False = 0
 The second example is of course very valid. Because we did not want our program to show a warning for something that is valid code, we decided not to report shadowing on the top level.
 
 # Exercise G: SameLevelShadowing
+
+Because of the way we implemented `variables` in exercise F, it was quite easy to add the needed functionality for exercise G. We introduce a synthesized attribute `sameLevelShadowing : [(String, [(String,Int)])]` on line 346 for `Module`. The semantics are defined right below, on line 349. We simply take the tree of variables and filter it in such a way that only duplicate variables on the same level remain. For example (simplified):
+
+```haskell
+Node [("a",("file",2))] 
+  [
+    Node [("b",("file",5))] [], 
+    Node [("b",("file", 6)),("c", ("file", 7))] []
+  ]
+
+becomes
+
+[ ("b", [("file",5), ("file", 6)] ) ]
+```
