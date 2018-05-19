@@ -1,0 +1,5 @@
+# Deze worden gegenereerd dus die hoeven we niet te volgen
+mf.cabal
+src/Parser.hs
+src/Lexer.hs
+src/AttributeGrammar.hs

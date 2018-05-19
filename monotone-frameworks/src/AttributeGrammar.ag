@@ -1,9 +1,3 @@
-{
-import qualified Data.Map as M
-import qualified Data.Maybe as Maybe
-import qualified Data.List as L
-}
-
 data Program
   | Program   procs :: Procs
               stat  :: Stat
@@ -11,83 +5,199 @@ data Program
 
 data Program'
   | Program'  procs :: Procs'
-              stat :: Stat'
+              stat  :: Stat'
   deriving Program' : Show
 
+type Procs  = [ Proc  ]
+type Procs' = [ Proc' ]
 data Proc
   | Proc          name :: String  inp :: {[String]}  out :: String   stat :: Stat
-deriving Proc : Show
+  deriving Proc : Show
 
 data Proc'
   | Proc'         labelEntry :: Int  labelReturn :: Int    name :: String  inp :: {[String]}  out :: String   stat :: Stat'
-deriving Proc' : Show
+  deriving Proc' : Show
 
 data Stat
   | Skip
-  | IfThenElse    cond  :: {BExpr}      stat1  :: Stat      stat2 :: Stat
-  | While         cond  :: {BExpr}      stat   :: Stat
-  | Call          name  :: String     params :: {Exprs}    out :: String
-  | IAssign       name  :: String     val    :: {IExpr}
-  | BAssign       name  :: String     val    :: {BExpr}
-  | Seq           stat1 :: Stat       stat2  :: Stat
-  | Malloc        name  :: String     size   :: {IExpr}
+  | IfThenElse    cond  :: {BExpr} stat1  :: Stat    stat2 :: Stat
+  | While         cond  :: {BExpr} stat   :: Stat
+  | Call          name  :: String  params :: {Exprs} out :: String
+  | IAssign       name  :: String  val    :: {IExpr}
+  | BAssign       name  :: String  val    :: {BExpr}
+  | Seq           stat1 :: Stat    stat2  :: Stat
+  | Malloc        name  :: String  size   :: {IExpr}
   | Free          ptr   :: {IExpr}
-  | RefAssign     ptr   :: {IExpr}    val    :: {IExpr}
+  | RefAssign     ptr   :: {IExpr} val    :: {IExpr}
   | Continue
   | Break
-deriving Stat : Show
+  deriving Stat : Show
 
 data Stat'
-  | Skip'          label :: Int
-  | IfThenElse'    labelc :: Int       cond  :: BExpr      stat1  :: Stat'     stat2 :: Stat'
-  | While'         labelc :: Int       cond  :: BExpr      stat   :: Stat'
-  | Call'          labelCall :: Int  labelExit :: Int      name  :: String     params :: Exprs    out :: String
-  | IAssign'       label :: Int        name  :: String     val    :: IExpr
-  | BAssign'       label :: Int        name  :: String     val    :: BExpr
-  | Seq'           stat1 :: Stat'      stat2  :: Stat'
-  | Malloc'        label :: Int        name  :: String     size   :: IExpr
-  | Free'          label :: Int        ptr   :: IExpr
-  | RefAssign'     label :: Int        ptr   :: IExpr      val :: IExpr
-  | Continue'      label :: Int
-  | Break'         label :: Int
-deriving Stat' : Show
+  | Skip'          label     :: Int
+  | IfThenElse'    labelc    :: Int   cond      :: BExpr   stat1  :: Stat'  stat2  :: Stat'
+  | While'         labelc    :: Int   cond      :: BExpr   stat   :: Stat'
+  | Call'          labelCall :: Int   labelExit :: Int     name   :: String params :: Exprs  out :: String
+  | IAssign'       label     :: Int   name      :: String  val    :: IExpr
+  | BAssign'       label     :: Int   name      :: String  val    :: BExpr
+  | Seq'           stat1     :: Stat' stat2     :: Stat'
+  | Malloc'        label     :: Int   name      :: String  size   :: IExpr
+  | Free'          label     :: Int   ptr       :: IExpr
+  | RefAssign'     label     :: Int   ptr       :: IExpr   val    :: IExpr
+  | Continue'      label     :: Int
+  | Break'         label     :: Int
+  deriving Stat' : Show
 
-data IExpr 
+data IExpr
   | IConst        val  :: Int
   | Var           name :: String
-  | Plus          left :: IExpr       right :: IExpr
-  | Minus         left :: IExpr       right :: IExpr
-  | Times         left :: IExpr       right :: IExpr
-  | Divide        left :: IExpr       right :: IExpr
+  | Plus          left :: IExpr  right :: IExpr
+  | Minus         left :: IExpr  right :: IExpr
+  | Times         left :: IExpr  right :: IExpr
+  | Divide        left :: IExpr  right :: IExpr
   | Deref         ptr  :: IExpr
-deriving IExpr : Eq, Show
+  deriving IExpr : Eq, Show
 
 data BExpr
   | BConst        val  :: Bool
   | BVar          name :: String
-  | LessThan      left :: IExpr       right :: IExpr
-  | GreaterThan   left :: IExpr       right :: IExpr
-  | LessEqual     left :: IExpr       right :: IExpr
-  | GreaterEqual  left :: IExpr       right :: IExpr
-  | IEqual        left :: IExpr       right :: IExpr
-  | BEqual        left :: BExpr       right :: BExpr
-  | And           left :: BExpr       right :: BExpr
-  | Or            left :: BExpr       right :: BExpr
+  | LessThan      left :: IExpr  right :: IExpr
+  | GreaterThan   left :: IExpr  right :: IExpr
+  | LessEqual     left :: IExpr  right :: IExpr
+  | GreaterEqual  left :: IExpr  right :: IExpr
+  | IEqual        left :: IExpr  right :: IExpr
+  | BEqual        left :: BExpr  right :: BExpr
+  | And           left :: BExpr  right :: BExpr
+  | Or            left :: BExpr  right :: BExpr
   | Not           val  :: BExpr
-deriving BExpr : Eq, Show
+  deriving BExpr : Eq, Show
 
+type Exprs  = [ Expr  ]
+data Expr
+  | B BExpr
+  | I IExpr
+  deriving Expr : Eq, Show
 
-data Expr | B BExpr
-          | I IExpr
-deriving Expr : Eq, Show
+data Code
+  | CBExpr   BExpr
+  | CIExpr   IExpr
+  | CStat    Stat'
+  | CProc    Proc'
+  | CProgram Program'
 
-data Code | CBExpr   BExpr
-          | CIExpr   IExpr
-          | CStat    Stat'
-          | CProc    Proc'
-          | CProgram Program'
+--------------------------------------------------------------------------------
+--                        1. Handige type-verzamelingen                       --
+--------------------------------------------------------------------------------
 
-type Procs = [Proc]
-type Procs' = [Proc']
-type Exprs = [Expr]
+set Labelable  =
+  Program  Procs  Proc  Stat
 
+set Labelable' =
+  Program' Procs' Proc' Stat'
+
+--------------------------------------------------------------------------------
+--                           2. Attribuutdeclaraties                          --
+--------------------------------------------------------------------------------
+
+{- Houdt de huidige beschikbare label-waarde. Dit betekent dus dat de georven
+ - waarde altijd gebruikt kan worden, maar moet worden aangepast voordat deze
+ - doorgegeven wordt aan de kinderen:
+ -
+ - vb.
+ -
+ -  Label 9 komt binnen
+ -  Ik gebruik label 9 in een programmapunt
+ -  De labelwaarde die ik door ga geven is 9 + 1 = 10.
+ -}
+attr Labelable Labelable'
+  chn label :: Int
+
+attr Program
+  syn transformed :: Program'
+
+attr Procs
+  syn transformed :: Procs'
+
+attr Proc
+  syn transformed :: Proc'
+
+attr Stat
+  syn transformed :: Stat'
+
+{- Alleen de types die een accent-versie hebben krijgen het transformed
+ - attribuut omdat daar labels aan verbonden moeten worden.
+ -}
+
+--------------------------------------------------------------------------------
+--                                3. Semantiek                                --
+--------------------------------------------------------------------------------
+
+sem Program
+  | Program
+    lhs.label       = 0
+       .transformed = Program' @procs.transformed @stat.transformed
+    procs.label     = @lhs.label
+    stat.label      = @procs.label
+
+sem Procs
+  | Cons
+    lhs.transformed = @hd.transformed : @tl.transformed
+       .label       = @tl.label
+    hd.label        = @lhs.label
+    tl.label        = @hd.label + 1
+-- Blijkbaar zijn deze niet in scope
+-- | Nil
+--   lhs.transformed = Nil
+--      .label       = @lhs.label
+
+sem Proc
+  | Proc
+    lhs.transformed = Proc' @lhs.label @stat.label @name @inp @out @stat.transformed
+
+sem Stat
+  | Skip
+    lhs.transformed = Skip' @lhs.label
+       .label       = @lhs.label + 1
+  | IfThenElse
+    lhs.transformed = IfThenElse' @lhs.label @cond @stat1.transformed @stat2.transformed
+       .label       = @stat2.label
+    stat1.label     = @lhs.label + 1
+    stat2.label     = @stat1.label -- misschien +1, weet nog niet
+  | While
+    lhs.transformed = While' @lhs.label @cond @stat.transformed
+       .label       = @stat.label
+    stat.label      = @lhs.label + 1
+  | Call
+    lhs.transformed = Call' @lhs.label (@lhs.label + 1) @name @params @out
+       .label       = @lhs.label + 2
+  | IAssign
+    lhs.transformed = IAssign' @lhs.label @name @val
+       .label       = @lhs.label + 1
+  | BAssign
+    lhs.transformed = BAssign' @lhs.label @name @val
+       .label       = @lhs.label + 1
+  | Seq
+    lhs.transformed = Seq' @stat1.transformed @stat2.transformed
+       .label       = @stat2.label
+    stat1.label     = @lhs.label
+    stat2.label     = @stat1.label
+  | Malloc
+    lhs.transformed = Malloc' @lhs.label @name @size
+       .label       = @lhs.label + 1
+  | Free
+    lhs.transformed = Free' @lhs.label @ptr
+       .label       = @lhs.label + 1
+  | RefAssign
+    lhs.transformed = RefAssign' @lhs.label @ptr @val
+       .label       = @lhs.label + 1
+  | Continue
+    lhs.transformed = Continue' @lhs.label
+       .label       = @lhs.label + 1
+  | Break
+    lhs.transformed = Break' @lhs.label
+       .label       = @lhs.label + 1
+
+{
+result :: Program -> T_Program
+result = sem_Program
+}
