@@ -1,3 +1,12 @@
+{
+import Data.Graph
+
+import Data.Set (Set(..))
+import qualified Data.Set as S
+
+import Data.List
+}
+
 data Program
   | Program   procs :: Procs
               stat  :: Stat
@@ -90,16 +99,15 @@ data Code
 --------------------------------------------------------------------------------
 
 set Labelable  =
-  Program  Procs  Proc  Stat
-
-set Labelable' =
-  Program' Procs' Proc' Stat'
+  Procs  Proc  Stat
 
 --------------------------------------------------------------------------------
 --                           2. Attribuutdeclaraties                          --
 --------------------------------------------------------------------------------
 
-{- Houdt de huidige beschikbare label-waarde. Dit betekent dus dat de georven
+{- label : Int
+ -
+ - Houdt de huidige beschikbare label-waarde. Dit betekent dus dat de georven
  - waarde altijd gebruikt kan worden, maar moet worden aangepast voordat deze
  - doorgegeven wordt aan de kinderen:
  -
@@ -108,18 +116,26 @@ set Labelable' =
  -  Label 9 komt binnen
  -  Ik gebruik label 9 in een programmapunt
  -  De labelwaarde die ik door ga geven is 9 + 1 = 10.
+ -
+ - ---------------------------------------------------------------------------
+ -
+ - cfg : Graph
+ -
+ - 'Control flow graph' is een synthetisch attribuut op het hoogste niveau. Dit
+ - kan triviaal gedaan worden met de verzameling kanten die de stroming
+ - definieren: cfg : Set Edges -> Graph
+ -
  -}
-attr Labelable Labelable'
-  chn label :: Int
+attr Labelable
+  chn label :: Label
+  -- chn edges :: Set Edge
 
 attr Program
   syn transformed :: Program'
+  syn cfg         :: Graph
 
-attr Procs
-  syn transformed :: Procs'
-
-attr Proc
-  syn transformed :: Proc'
+attr Proc Procs
+  syn transformed use {++} {[]} :: Procs'
 
 attr Stat
   syn transformed :: Stat'
@@ -134,69 +150,63 @@ attr Stat
 
 sem Program
   | Program
-    lhs.label       = 0
-       .transformed = Program' @procs.transformed @stat.transformed
-    procs.label     = @lhs.label
+    lhs.transformed = Program' @procs.transformed @stat.transformed
+       .cfg         = let allEdges = S.toList (S.union undefined undefined) -- @stat.edges @procs.edges)
+                      in buildG (findBounds allEdges) allEdges
+    procs.label     = 1
     stat.label      = @procs.label
-
-sem Procs
-  | Cons
-    lhs.transformed = @hd.transformed : @tl.transformed
-       .label       = @tl.label
-    hd.label        = @lhs.label
-    tl.label        = @hd.label + 1
-   | Nil
-     lhs.transformed = []
-        .label       = @lhs.label
 
 sem Proc
   | Proc
-    lhs.transformed = Proc' @lhs.label @stat.label @name @inp @out @stat.transformed
+    loc.entry :: uniqueref label
+       .exit  :: uniqueref label
+    lhs.transformed =
+      [Proc' @loc.entry @loc.exit @name @inp @out @stat.transformed]
 
 sem Stat
-  | Skip
-    lhs.transformed = Skip' @lhs.label
-       .label       = @lhs.label + 1
-  | IfThenElse
-    lhs.transformed = IfThenElse' @lhs.label @cond @stat1.transformed @stat2.transformed
-       .label       = @stat2.label
-    stat1.label     = @lhs.label + 1
-    stat2.label     = @stat1.label -- misschien +1, weet nog niet
-  | While
-    lhs.transformed = While' @lhs.label @cond @stat.transformed
-       .label       = @stat.label
-    stat.label      = @lhs.label + 1
-  | Call
-    lhs.transformed = Call' @lhs.label (@lhs.label + 1) @name @params @out
-       .label       = @lhs.label + 2
-  | IAssign
-    lhs.transformed = IAssign' @lhs.label @name @val
-       .label       = @lhs.label + 1
-  | BAssign
-    lhs.transformed = BAssign' @lhs.label @name @val
-       .label       = @lhs.label + 1
-  | Seq
-    lhs.transformed = Seq' @stat1.transformed @stat2.transformed
-       .label       = @stat2.label
-    stat1.label     = @lhs.label
-    stat2.label     = @stat1.label
-  | Malloc
-    lhs.transformed = Malloc' @lhs.label @name @size
-       .label       = @lhs.label + 1
-  | Free
-    lhs.transformed = Free' @lhs.label @ptr
-       .label       = @lhs.label + 1
-  | RefAssign
-    lhs.transformed = RefAssign' @lhs.label @ptr @val
-       .label       = @lhs.label + 1
-  | Continue
-    lhs.transformed = Continue' @lhs.label
-       .label       = @lhs.label + 1
-  | Break
-    lhs.transformed = Break' @lhs.label
-       .label       = @lhs.label + 1
+  | Skip IfThenElse While Call IAssign BAssign Seq Malloc Free RefAssign
+    Continue Break
+    loc.nextLabel :: uniqueref label
+
+sem Stat
+  | Skip lhs.transformed = Skip' @loc.nextLabel
+  | IfThenElse lhs.transformed = IfThenElse' @loc.nextLabel @cond @stat1.transformed @stat2.transformed
+  | While      lhs.transformed = While'      @loc.nextLabel @cond @stat.transformed
+  | IAssign    lhs.transformed = IAssign'    @loc.nextLabel @name @val
+  | BAssign    lhs.transformed = BAssign'    @loc.nextLabel @name @val
+  | Seq        lhs.transformed = Seq'        @stat1.transformed @stat2.transformed
+  | Malloc     lhs.transformed = Malloc'     @loc.nextLabel @name @size
+  | Free       lhs.transformed = Free'       @loc.nextLabel @ptr
+  | RefAssign  lhs.transformed = RefAssign'  @loc.nextLabel @ptr @val
+  | Continue   lhs.transformed = Continue'   @loc.nextLabel
+  | Break      lhs.transformed = Break'      @loc.nextLabel
+  | Call       loc.call   :: uniqueref label
+                  .return :: uniqueref label
+               lhs.transformed = Call'       @loc.call @loc.return @name @params @out
+
+--------------------------------------------------------------------------------
+--                               4. Hulpfuncties                              --
+--------------------------------------------------------------------------------
 
 {
-result :: Program -> T_Program
-result = sem_Program
+
+type Label = Int
+
+{- Labelgenerator. Deze functie verzorgt het genereren van verse
+ - programmapunten, dat wordt ons volledig uit handen genomen door het AG
+ - systeem.
+ -
+ - Let wel: Labels worden altijd gegenereerd, maar niet altijd gebruikt. Het kan
+ - dus zijn dat de getallen 1 t/m 10 gegenereerd worden als labels maar dat
+ - uiteindelijk alleen 3,4 en 5 gebruikt worden. Dan mist de rest dus, maar dat
+ - maakt niet uit.
+ -}
+nextUnique :: Label -> (Label, Label)
+nextUnique u = (u + 1, u)
+
+-- Vind de grenzen van de control flow graaf
+findBounds :: [Edge] -> (Int, Int)
+findBounds edges =
+  let xs = foldl' (\cur (x, y) -> x:y:cur) [] edges
+  in (minimum xs, maximum xs)
 }
