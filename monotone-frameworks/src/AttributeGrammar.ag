@@ -145,10 +145,9 @@ sem Procs
        .label       = @tl.label
     hd.label        = @lhs.label
     tl.label        = @hd.label + 1
--- Blijkbaar zijn deze niet in scope
--- | Nil
---   lhs.transformed = Nil
---      .label       = @lhs.label
+   | Nil
+     lhs.transformed = []
+        .label       = @lhs.label
 
 sem Proc
   | Proc
