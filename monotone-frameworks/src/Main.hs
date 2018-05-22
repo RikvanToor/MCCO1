@@ -42,6 +42,12 @@ main =
     --  Debugging
     print program_labeled
 
+    let (finals, init) = sem_Program' program_labeled
+
+    putStrLn $ "Init state: " ++ show init
+
+    putStrLn $ "Final states: " ++ show finals
+
     -- /Debugging
 
     return ()

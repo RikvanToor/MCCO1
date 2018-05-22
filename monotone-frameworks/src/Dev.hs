@@ -5,7 +5,7 @@ import qualified Data.List as L
 
 import AttributeGrammar
 import Lexer
-import Main
+import Main hiding (parse)
 import Parser
 
 -- To make it all compile for the moment:

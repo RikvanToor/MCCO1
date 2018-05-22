@@ -144,6 +144,14 @@ attr Stat
  - attribuut omdat daar labels aan verbonden moeten worden.
  -}
 
+{- Het labelnummer van de allereerste statement in een programma. -}
+attr Program' Stat'
+  syn init        :: Label
+  syn finals      :: {[Label]}
+
+attr Stat'
+  syn breakFinals use {(++)} {[]} :: {[Label]} -- Check if a while statement contains a 'Break'.
+
 --------------------------------------------------------------------------------
 --                                3. Semantiek                                --
 --------------------------------------------------------------------------------
@@ -169,7 +177,7 @@ sem Stat
     loc.nextLabel :: uniqueref label
 
 sem Stat
-  | Skip lhs.transformed = Skip' @loc.nextLabel
+  | Skip       lhs.transformed = Skip' @loc.nextLabel
   | IfThenElse lhs.transformed = IfThenElse' @loc.nextLabel @cond @stat1.transformed @stat2.transformed
   | While      lhs.transformed = While'      @loc.nextLabel @cond @stat.transformed
   | IAssign    lhs.transformed = IAssign'    @loc.nextLabel @name @val
@@ -183,6 +191,39 @@ sem Stat
   | Call       loc.call   :: uniqueref label
                   .return :: uniqueref label
                lhs.transformed = Call'       @loc.call @loc.return @name @params @out
+
+sem Program'
+  | Program'
+    lhs.init   = @stat.init
+    lhs.finals = @stat.finals
+  
+sem Stat'
+  | Skip'         lhs.init        = @label
+                  lhs.finals      = [@label]
+  | IfThenElse'   lhs.init        = @labelc
+                  lhs.finals      = @stat1.finals ++ @stat2.finals
+  | While'        lhs.init        = @labelc
+                  lhs.finals      = @labelc : @stat.breakFinals
+  | Call'         lhs.init        = @labelCall
+                  lhs.finals      = [@labelExit]
+  | IAssign'      lhs.init        = @label
+                  lhs.finals      = [@label]
+  | BAssign'      lhs.init        = @label
+                  lhs.finals      = [@label]
+  | Seq'          lhs.init        = @stat1.init
+                  lhs.finals      = @stat2.finals
+                  lhs.breakFinals = @stat1.breakFinals ++ @stat2.breakFinals
+  | Malloc'       lhs.init        = @label
+                  lhs.finals      = [@label]
+  | Free'         lhs.init        = @label
+                  lhs.finals      = [@label]
+  | RefAssign'    lhs.init        = @label
+                  lhs.finals      = [@label]
+  | Continue'     lhs.init        = @label
+                  lhs.finals      = [@label]
+  | Break'        lhs.init        = @label
+                  lhs.finals      = [@label]
+                  lhs.breakFinals = [@label]
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --
