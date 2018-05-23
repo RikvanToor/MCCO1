@@ -136,11 +136,9 @@ type Label = Int
 
 attr Labelable
   chn label :: Label
-  -- chn edges :: Set Edge
 
 attr Program
   syn transformed :: Program'
-  syn cfg         :: Graph
 
 attr Proc Procs
   syn transformed use {mplus} {mzero} :: Procs'
@@ -155,7 +153,13 @@ attr Stat
 {
 type Init   =  Label
 type Finals = [Label]
+type Flow   = [(Label, Label)]
 }
+
+
+attr Program'
+  syn cfg  :: Graph
+  syn rcfg :: Graph
 
 {- Het labelnummer van de allereerste statement in een programma. -}
 attr Program' Stat'
@@ -163,7 +167,9 @@ attr Program' Stat'
   syn finals      :: {Finals}
 
 attr Stat'
-  syn breakFinals use {mplus} {mzero} :: {Finals} -- Check if a while statement contains a 'Break'.
+  -- Check if a while statement contains a 'Break'.
+  syn breakFinals use {mplus} {mzero} :: {Finals}
+  syn flow                            :: {Flow}
 
 --------------------------------------------------------------------------------
 --                                3. Semantiek                                --
@@ -172,8 +178,6 @@ attr Stat'
 sem Program
   | Program
     lhs.transformed = Program' @procs.transformed @stat.transformed
-       .cfg         = let allEdges = S.toList (S.union undefined undefined) -- @stat.edges @procs.edges)
-                      in buildG (findBounds allEdges) allEdges
     procs.label     = 1
     stat.label      = @procs.label
 
@@ -210,45 +214,69 @@ sem Program'
     lhs.init   = @stat.init
        .finals = @stat.finals
 
+    -- De CFG en de omgekeerde cfg
+    loc.c      = buildG (findBounds @stat.flow) @stat.flow
+    lhs.cfg    = @loc.c
+       .rcfg   = transposeG @loc.c
+
 sem Stat'
   | Skip'
     lhs.init        = @label
        .finals      = return @label
+       .flow        = mzero
   | IfThenElse'
     lhs.init        = @labelc
        .finals      = @stat1.finals `mplus` @stat2.finals
+       .flow        = let extra = msum [ return (@labelc, @stat1.init)
+                                       , return (@labelc, @stat2.init)
+                                       ]
+                      in msum [@stat1.flow, @stat2.flow, extra]
   | While'
     lhs.init        = @labelc
        .finals      = (return @labelc) `mplus` @stat.breakFinals
+       .flow        = let extra = fmap (\x -> (x, @labelc)) @stat.finals
+                      in msum [@stat.flow, return (@labelc, @stat.init), extra]
   | Call'
     lhs.init        = @labelCall
        .finals      = return @labelExit
+       .flow        = mzero -- maybe
   | IAssign'
     lhs.init        = @label
        .finals      = return @label
+       .flow        = mzero
   | BAssign'
     lhs.init        = @label
        .finals      = return @label
+       .flow        = mzero
   | Seq'
     lhs.init        = @stat1.init
        .finals      = @stat2.finals
        .breakFinals = @stat1.breakFinals `mplus` @stat2.breakFinals
+       .flow        = let extra = msum [return (x, @stat2.init)
+                                       | x <- @stat1.finals
+                                       ]
+                      in msum [@stat1.flow, @stat2.flow, extra]
   | Malloc'
     lhs.init        = @label
        .finals      = return @label
+       .flow        = mzero -- maybe
   | Free'
     lhs.init        = @label
        .finals      = return @label
+       .flow        = mzero -- maybe
   | RefAssign'
     lhs.init        = @label
        .finals      = return @label
+       .flow        = mzero -- maybe
   | Continue'
     lhs.init        = @label
        .finals      = return @label
+       .flow        = mzero -- maybe
   | Break'
     lhs.init        = @label
        .finals      = return @label
        .breakFinals = return @label
+       .flow        = mzero -- maybe
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --
