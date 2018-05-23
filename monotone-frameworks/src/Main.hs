@@ -18,20 +18,20 @@ parseFile f = parse <$> readFile f
 --                           1. Semantische functies                          --
 --------------------------------------------------------------------------------
 
-
 main :: IO ()
 main =
   do
     hSetBuffering stdin LineBuffering
 
-    program_raw <- getLine >>= parseFile
+    -- program_raw <- getLine >>= parseFile
+    program_raw <- parseFile "../examples/break.c"
 
     let program_labeled = sem_Program program_raw
 
     --  Debugging
     print program_labeled
 
-    let (cfg, finals, init, rcfg) = sem_Program' program_labeled
+    let (blocks, cfg, finals, init, rcfg) = sem_Program' program_labeled
 
     putStrLn $ "Init state: " ++ show init
 

@@ -1,13 +1,8 @@
 {
+import Data.Bifunctor
 import Data.Graph
-
-import Data.Set (Set(..))
-import qualified Data.Set as S
-
 import Data.List
-
 import Data.Monoid
-
 }
 
 data Program
@@ -18,7 +13,7 @@ data Program
 data Program'
   | Program'  procs :: Procs'
               stat  :: Stat'
-  deriving Program' : Show
+
 
 type Procs  = [ Proc  ]
 type Procs' = [ Proc' ]
@@ -27,7 +22,7 @@ data Proc
   deriving Proc : Show
 
 data Proc'
-  | Proc'         labelEntry :: Int  labelReturn :: Int    name :: String  inp :: {[String]}  out :: String   stat :: Stat'
+  | Proc'         labelEntry :: Label  labelReturn :: Label    name :: String  inp :: {[String]}  out :: String   stat :: Stat'
   deriving Proc' : Show
 
 data Stat
@@ -46,19 +41,18 @@ data Stat
   deriving Stat : Show
 
 data Stat'
-  | Skip'          label     :: Int
-  | IfThenElse'    labelc    :: Int   cond      :: BExpr   stat1  :: Stat'  stat2  :: Stat'
-  | While'         labelc    :: Int   cond      :: BExpr   stat   :: Stat'
-  | Call'          labelCall :: Int   labelExit :: Int     name   :: String params :: Exprs  out :: String
-  | IAssign'       label     :: Int   name      :: String  val    :: IExpr
-  | BAssign'       label     :: Int   name      :: String  val    :: BExpr
+  | Skip'          label     :: Label
+  | IfThenElse'    labelc    :: Label   cond      :: BExpr   stat1  :: Stat'  stat2  :: Stat'
+  | While'         labelc    :: Label   cond      :: BExpr   stat   :: Stat'
+  | Call'          labelCall :: Label   labelExit :: Label     name   :: String params :: Exprs  out :: String
+  | IAssign'       label     :: Label   name      :: String  val    :: IExpr
+  | BAssign'       label     :: Label   name      :: String  val    :: BExpr
   | Seq'           stat1     :: Stat' stat2     :: Stat'
-  | Malloc'        label     :: Int   name      :: String  size   :: IExpr
-  | Free'          label     :: Int   ptr       :: IExpr
-  | RefAssign'     label     :: Int   ptr       :: IExpr   val    :: IExpr
-  | Continue'      label     :: Int
-  | Break'         label     :: Int
-  deriving Stat' : Show
+  | Malloc'        label     :: Label   name      :: String  size   :: IExpr
+  | Free'          label     :: Label   ptr       :: IExpr
+  | RefAssign'     label     :: Label   ptr       :: IExpr   val    :: IExpr
+  | Continue'      label     :: Label
+  | Break'         label     :: Label
 
 data IExpr
   | IConst        val  :: Int
@@ -68,7 +62,7 @@ data IExpr
   | Times         left :: IExpr  right :: IExpr
   | Divide        left :: IExpr  right :: IExpr
   | Deref         ptr  :: IExpr
-  deriving IExpr : Eq, Show
+  deriving IExpr : Eq
 
 data BExpr
   | BConst        val  :: Bool
@@ -82,7 +76,7 @@ data BExpr
   | And           left :: BExpr  right :: BExpr
   | Or            left :: BExpr  right :: BExpr
   | Not           val  :: BExpr
-  deriving BExpr : Eq, Show
+  deriving BExpr : Eq
 
 type Exprs  = [ Expr  ]
 data Expr
@@ -98,12 +92,76 @@ data Code
   | CProgram Program'
 
 --------------------------------------------------------------------------------
---                        1. Handige type-verzamelingen                       --
+-- Lelijke instances, maar ze maken het wel mooi in de output                 --
 --------------------------------------------------------------------------------
+{
+instance Show Program' where
+  show (Program' _ stat) = "Program Listing:\nNote: Show Procs is not implemented!)\n\n" ++ show stat
 
-set Labelable  =
-  Procs  Proc  Stat
+instance Show Stat' where
+  show s =
+    case s of
+      Skip' label ->
+        "[skip]" ++ show label
+      IfThenElse' labelc cond  stat1 stat2 ->
+        "[if " ++ show cond ++ "] " ++ show labelc ++ "\n" ++
+        indentblock (show stat1) ++ "\nelse\n" ++ indentblock (show stat2)
+      While' labelc cond stat ->
+        "[while " ++ show cond ++ "] " ++ show labelc ++ "\n" ++
+        indentblock (show stat) ++ "\n"
+      IAssign' label name val ->
+        "[" ++ name ++ " = " ++ show val ++ "] " ++ show label
+      BAssign' label name val ->
+        "[" ++ name ++ " = " ++ show val ++ "] " ++ show label
+      Seq' stat1 stat2 ->
+        show stat1 ++ ";\n" ++ show stat2
+      Malloc' label name size ->
+        "[malloc(" ++ name ++ ", " ++ show size ++ ")] " ++ show label
+      Free' label ptr ->
+        "[free(" ++ show ptr ++ ")]" ++ show label
+      RefAssign' label ptr val ->
+        "[refassign(" ++ show ptr ++ ") = " ++ show val ++ "] " ++ show label
+      Continue' label ->
+        "[continue] " ++ show label
+      Break' label ->
+        "[break] " ++ show label
+      Call' labelCall labelExit name params out ->
+        ""
 
+-- helper functie die vooraan elke regel twee spaties stopt.
+indentblock :: String -> String
+indentblock = init . unlines . fmap ("  "++) . lines
+
+-- abstractie
+infixop :: Show a => a -> String -> a -> String
+infixop left inf right = show left ++ " " ++ inf ++ " " ++ show right
+
+instance Show IExpr where
+  show s =
+    case s of
+      IConst val        -> show val
+      Var    name       -> name
+      Plus   left right -> infixop left "+" right
+      Minus  left right -> infixop left "-" right
+      Times  left right -> infixop left "*" right
+      Divide left right -> infixop left "/" right
+      Deref  ptr        -> "dereference(" ++ show ptr ++ ")"
+
+instance Show BExpr where
+  show s =
+    case s of
+      BConst        val         -> show val
+      BVar          name        -> name
+      LessThan      left  right -> infixop left "<" right
+      GreaterThan   left  right -> infixop left ">" right
+      LessEqual     left  right -> infixop left "<=" right
+      GreaterEqual  left  right -> infixop left ">=" right
+      IEqual        left  right -> infixop left "==" right
+      BEqual        left  right -> infixop left "==" right
+      And           left  right -> infixop left "&&" right
+      Or            left  right -> infixop left "||" right
+      Not           val         -> "!(" ++ show val ++ ")"
+}
 --------------------------------------------------------------------------------
 --                           2. Attribuutdeclaraties                          --
 --------------------------------------------------------------------------------
@@ -130,17 +188,20 @@ set Labelable  =
  -
  -}
 {
-type Label = Int
+newtype Label = Label { getLabel :: Int } deriving (Eq, Ord)
+
+instance Show Label where
+  show (Label x) = concat ["\ESC[93m\ESC[1m", show x, "\ESC[0m"]
 }
 
-attr Labelable
+attr Procs Proc Stat
   chn label :: Label
 
 attr Program
   syn transformed :: Program'
 
 attr Proc Procs
-  syn transformed use {(<>)} {mempty} :: Procs'
+  syn transformed use {(++)} {[]} :: Procs'
 
 attr Stat
   syn transformed :: Stat'
@@ -150,34 +211,43 @@ attr Stat
  -}
 
 {
-type Init   =  Label
+type Init   = Label
 type Finals = [Label]
-type Flow   = [(Label, Label)]
+
+type Arc a  = (a, a)
+type Flow   = [Arc Label]
+
+fromArc :: (a -> b) -> (a, a) -> (b, b)
+fromArc f = bimap f f
+
+type Block = Label -- ik weet nog niet wat block moet worden, is voor morgen
 }
 
 
 attr Program'
-  syn cfg  :: Graph
-  syn rcfg :: Graph
-
-{- Het labelnummer van de allereerste statement in een programma. -}
-attr Program' Stat'
-  syn init        :: Init
-  syn finals      :: {Finals}
+  syn cfg    :: Graph
+  syn rcfg   :: Graph
+  syn init   :: Init
+  syn finals :: Finals
+  syn blocks :: {[Block]}
 
 attr Stat'
-  -- Check if a while statement contains a 'Break'.
-  syn breakFinals use {(<>)} {mempty} :: {Finals}
-  syn flow                            :: {Flow}
+  syn blocks        use {(++)} {[]} :: {[Block]}
+  syn breakFinals   use {(++)} {[]} :: Finals
+  syn continueInits use {(++)} {[]} :: Finals
+  syn finals        use {(++)} {[]} :: Finals
+  syn flow          use {(++)} {[]} :: Flow
+  syn init                          :: Init
 
 --------------------------------------------------------------------------------
 --                                3. Semantiek                                --
 --------------------------------------------------------------------------------
 
+-- Transformatie van Program naar Program' (Toevoegen van labels)
 sem Program
   | Program
     lhs.transformed = Program' @procs.transformed @stat.transformed
-    procs.label     = 1
+    procs.label     = Label 1
     stat.label      = @procs.label
 
 sem Proc
@@ -185,7 +255,7 @@ sem Proc
     loc.entry :: uniqueref label
        .exit  :: uniqueref label
     lhs.transformed =
-      pure (Proc' @loc.entry @loc.exit @name @inp @out @stat.transformed)
+     [(Proc' @loc.entry @loc.exit @name @inp @out @stat.transformed)]
 
 sem Stat
   | Skip IfThenElse While Call IAssign BAssign Seq Malloc Free RefAssign
@@ -193,96 +263,109 @@ sem Stat
     loc.nextLabel :: uniqueref label
 
 sem Stat
-  | Skip       lhs.transformed = Skip' @loc.nextLabel
-  | IfThenElse lhs.transformed = IfThenElse' @loc.nextLabel @cond @stat1.transformed @stat2.transformed
+  | Skip       lhs.transformed = Skip'       @loc.nextLabel
   | While      lhs.transformed = While'      @loc.nextLabel @cond @stat.transformed
   | IAssign    lhs.transformed = IAssign'    @loc.nextLabel @name @val
   | BAssign    lhs.transformed = BAssign'    @loc.nextLabel @name @val
-  | Seq        lhs.transformed = Seq'        @stat1.transformed @stat2.transformed
   | Malloc     lhs.transformed = Malloc'     @loc.nextLabel @name @size
   | Free       lhs.transformed = Free'       @loc.nextLabel @ptr
   | RefAssign  lhs.transformed = RefAssign'  @loc.nextLabel @ptr @val
   | Continue   lhs.transformed = Continue'   @loc.nextLabel
   | Break      lhs.transformed = Break'      @loc.nextLabel
+  | IfThenElse lhs.transformed = IfThenElse' @loc.nextLabel
+                                  @cond @stat1.transformed @stat2.transformed
+  | Seq        lhs.transformed = Seq' @stat1.transformed @stat2.transformed
   | Call       loc.call   :: uniqueref label
                   .return :: uniqueref label
                lhs.transformed = Call'       @loc.call @loc.return @name @params @out
 
+-- Init
+
+sem Program'
+  | Program' lhs.init   = @stat.init
+
+sem Stat'
+  | Skip'       lhs.init = @label
+  | IfThenElse' lhs.init = @labelc
+  | While'      lhs.init = @labelc
+  | Call'       lhs.init = @labelCall
+  | IAssign'    lhs.init = @label
+  | BAssign'    lhs.init = @label
+  | Seq'        lhs.init = @stat1.init
+  | Malloc'     lhs.init = @label
+  | Free'       lhs.init = @label
+  | RefAssign'  lhs.init = @label
+  | Continue'   lhs.init = @label
+  | Break'      lhs.init = @label
+
+-- Finals
+
+sem Program'
+  | Program'    lhs.finals      = @stat.finals
+
+sem Stat'
+  | Skip'       lhs.finals      = [@label]
+  | IfThenElse' lhs.finals      = @stat1.finals ++ @stat2.finals
+  | While'      lhs.finals      = @labelc : @stat.breakFinals
+                   .breakFinals = []
+  | Call'       lhs.finals      = [@labelExit]
+  | IAssign'    lhs.finals      = [@label]
+  | BAssign'    lhs.finals      = [@label]
+  | Seq'        lhs.finals      = @stat2.finals
+  | Malloc'     lhs.finals      = [@label]
+  | Free'       lhs.finals      = [@label]
+  | RefAssign'  lhs.finals      = [@label]
+  | Continue'   lhs.finals      = []
+  | Break'      lhs.finals      = []
+                   .breakFinals = [@label]
+
+-- (Reverse) Control Flow Graph
+
 sem Program'
   | Program'
-    lhs.init   = @stat.init
-       .finals = @stat.finals
-
-    -- De CFG en de omgekeerde cfg
-    loc.c      = buildG (findBounds @stat.flow) @stat.flow
+    loc.c      = let l = fmap (fromArc getLabel) @stat.flow
+                 in buildG (findBounds l) l
     lhs.cfg    = @loc.c
        .rcfg   = transposeG @loc.c
 
 sem Stat'
-  | Skip'
-    lhs.init        = @label
-       .finals      = pure @label
-       .flow        = mempty
-  | IfThenElse'
-    lhs.init        = @labelc
-       .finals      = @stat1.finals <> @stat2.finals
-       .flow        = let extra = mconcat [ pure (@labelc, @stat1.init)
-                                          , pure (@labelc, @stat2.init)
-                                          ]
-                      in mconcat [@stat1.flow, @stat2.flow, extra]
-  | While'
-    lhs.init        = @labelc
-       .finals      = (pure @labelc) <> @stat.breakFinals
-       .flow        = let extra = fmap (\x -> (x, @labelc)) @stat.finals
-                      in mconcat [@stat.flow, pure (@labelc, @stat.init), extra]
-  | Call'
-    lhs.init        = @labelCall
-       .finals      = pure @labelExit
-       .flow        = mempty -- maybe
-  | IAssign'
-    lhs.init        = @label
-       .finals      = pure @label
-       .flow        = mempty
-  | BAssign'
-    lhs.init        = @label
-       .finals      = pure @label
-       .flow        = mempty
-  | Seq'
-    lhs.init        = @stat1.init
-       .finals      = @stat2.finals
-       .breakFinals = @stat1.breakFinals <> @stat2.breakFinals
-       .flow        = let extra = mconcat [pure (x, @stat2.init)
-                                          | x <- @stat1.finals
-                                          ]
-                      in mconcat [@stat1.flow, @stat2.flow, extra]
-  | Malloc'
-    lhs.init        = @label
-       .finals      = pure @label
-       .flow        = mempty -- maybe
-  | Free'
-    lhs.init        = @label
-       .finals      = pure @label
-       .flow        = mempty -- maybe
-  | RefAssign'
-    lhs.init        = @label
-       .finals      = pure @label
-       .flow        = mempty -- maybe
-  | Continue'
-    lhs.init        = @label
-       .finals      = pure @label
-       .flow        = mempty -- maybe
-  | Break'
-    lhs.init        = @label
-       .finals      = pure @label
-       .breakFinals = pure @label
-       .flow        = mempty -- maybe
+  | IfThenElse' lhs.flow = @stat1.flow ++  @stat2.flow ++
+                           [(@labelc, @stat1.init)] ++ [(@labelc, @stat2.init)]
+  | While'      lhs.flow = let extra = [(x, @labelc) | x <- @stat.finals] ++
+                                       [(x, @labelc) | x <- @stat.continueInits]
+                           in concat [@stat.flow, pure (@labelc, @stat.init), extra]
+                lhs.continueInits = []
+  | Call'       lhs.flow = [] -- Alleen voor Interprocedural belangrijk
+  | Seq'        lhs.flow = let extra = [(x, @stat2.init) | x <- @stat1.finals]
+                           in concat [@stat1.flow, @stat2.flow, extra]
+  | Continue'   lhs.continueInits = [@label]
+
+-- Blocks
+
+sem Program'
+  | Program'    lhs.blocks = undefined
+
+sem Stat'
+  | Skip'       lhs.blocks = undefined
+  | IfThenElse' lhs.blocks = undefined
+  | While'      lhs.blocks = undefined
+  | IAssign'    lhs.blocks = undefined
+  | Call'       lhs.blocks = undefined
+  | Seq'        lhs.blocks = undefined
+  | BAssign'    lhs.blocks = undefined
+  | Malloc'     lhs.blocks = undefined
+  | RefAssign'  lhs.blocks = undefined
+  | Free'       lhs.blocks = undefined
+  | Continue'   lhs.blocks = undefined
+  | Break'      lhs.blocks = undefined
+
+
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --
 --------------------------------------------------------------------------------
 
 {
-
 {- Labelgenerator. Deze functie verzorgt het genereren van verse
  - programmapunten, dat wordt ons volledig uit handen genomen door het AG
  - systeem.
@@ -293,11 +376,11 @@ sem Stat'
  - maakt niet uit.
  -}
 nextUnique :: Label -> (Label, Label)
-nextUnique u = (u + 1, u)
+nextUnique (Label x) = (Label (x + 1), Label x)
 
--- Vind de grenzen van de control flow graaf
-findBounds :: [Edge] -> (Int, Int)
-findBounds edges =
-  let xs = foldl' (\cur (x, y) -> x:y:cur) [] edges
-  in (minimum xs, maximum xs)
+-- Vindt de grenzen van de control flow graph
+findBounds :: Foldable t => t Edge -> (Int, Int)
+findBounds =
+  let f (cmin, cmax) (x, y) = (min cmin (min x y), max cmax (max x y))
+  in foldl' f (maxBound, minBound)
 }
