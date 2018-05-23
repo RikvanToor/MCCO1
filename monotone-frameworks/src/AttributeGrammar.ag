@@ -5,6 +5,10 @@ import Data.Set (Set(..))
 import qualified Data.Set as S
 
 import Data.List
+
+import Data.Monoid
+
+import Control.Monad
 }
 
 data Program
@@ -126,6 +130,10 @@ set Labelable  =
  - definieren: cfg : Set Edges -> Graph
  -
  -}
+{
+type Label = Int
+}
+
 attr Labelable
   chn label :: Label
   -- chn edges :: Set Edge
@@ -135,7 +143,7 @@ attr Program
   syn cfg         :: Graph
 
 attr Proc Procs
-  syn transformed use {++} {[]} :: Procs'
+  syn transformed use {mplus} {mzero} :: Procs'
 
 attr Stat
   syn transformed :: Stat'
@@ -144,13 +152,18 @@ attr Stat
  - attribuut omdat daar labels aan verbonden moeten worden.
  -}
 
+{
+type Init   =  Label
+type Finals = [Label]
+}
+
 {- Het labelnummer van de allereerste statement in een programma. -}
 attr Program' Stat'
-  syn init        :: Label
-  syn finals      :: {[Label]}
+  syn init        :: Init
+  syn finals      :: {Finals}
 
 attr Stat'
-  syn breakFinals use {(++)} {[]} :: {[Label]} -- Check if a while statement contains a 'Break'.
+  syn breakFinals use {mplus} {mzero} :: {Finals} -- Check if a while statement contains a 'Break'.
 
 --------------------------------------------------------------------------------
 --                                3. Semantiek                                --
@@ -169,7 +182,7 @@ sem Proc
     loc.entry :: uniqueref label
        .exit  :: uniqueref label
     lhs.transformed =
-      [Proc' @loc.entry @loc.exit @name @inp @out @stat.transformed]
+      return (Proc' @loc.entry @loc.exit @name @inp @out @stat.transformed)
 
 sem Stat
   | Skip IfThenElse While Call IAssign BAssign Seq Malloc Free RefAssign
@@ -195,43 +208,53 @@ sem Stat
 sem Program'
   | Program'
     lhs.init   = @stat.init
-    lhs.finals = @stat.finals
-  
+       .finals = @stat.finals
+
 sem Stat'
-  | Skip'         lhs.init        = @label
-                  lhs.finals      = [@label]
-  | IfThenElse'   lhs.init        = @labelc
-                  lhs.finals      = @stat1.finals ++ @stat2.finals
-  | While'        lhs.init        = @labelc
-                  lhs.finals      = @labelc : @stat.breakFinals
-  | Call'         lhs.init        = @labelCall
-                  lhs.finals      = [@labelExit]
-  | IAssign'      lhs.init        = @label
-                  lhs.finals      = [@label]
-  | BAssign'      lhs.init        = @label
-                  lhs.finals      = [@label]
-  | Seq'          lhs.init        = @stat1.init
-                  lhs.finals      = @stat2.finals
-                  lhs.breakFinals = @stat1.breakFinals ++ @stat2.breakFinals
-  | Malloc'       lhs.init        = @label
-                  lhs.finals      = [@label]
-  | Free'         lhs.init        = @label
-                  lhs.finals      = [@label]
-  | RefAssign'    lhs.init        = @label
-                  lhs.finals      = [@label]
-  | Continue'     lhs.init        = @label
-                  lhs.finals      = [@label]
-  | Break'        lhs.init        = @label
-                  lhs.finals      = [@label]
-                  lhs.breakFinals = [@label]
+  | Skip'
+    lhs.init        = @label
+       .finals      = return @label
+  | IfThenElse'
+    lhs.init        = @labelc
+       .finals      = @stat1.finals `mplus` @stat2.finals
+  | While'
+    lhs.init        = @labelc
+       .finals      = (return @labelc) `mplus` @stat.breakFinals
+  | Call'
+    lhs.init        = @labelCall
+       .finals      = return @labelExit
+  | IAssign'
+    lhs.init        = @label
+       .finals      = return @label
+  | BAssign'
+    lhs.init        = @label
+       .finals      = return @label
+  | Seq'
+    lhs.init        = @stat1.init
+       .finals      = @stat2.finals
+       .breakFinals = @stat1.breakFinals `mplus` @stat2.breakFinals
+  | Malloc'
+    lhs.init        = @label
+       .finals      = return @label
+  | Free'
+    lhs.init        = @label
+       .finals      = return @label
+  | RefAssign'
+    lhs.init        = @label
+       .finals      = return @label
+  | Continue'
+    lhs.init        = @label
+       .finals      = return @label
+  | Break'
+    lhs.init        = @label
+       .finals      = return @label
+       .breakFinals = return @label
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --
 --------------------------------------------------------------------------------
 
 {
-
-type Label = Int
 
 {- Labelgenerator. Deze functie verzorgt het genereren van verse
  - programmapunten, dat wordt ons volledig uit handen genomen door het AG
