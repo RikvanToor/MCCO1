@@ -1,6 +1,5 @@
 {
 import Data.Bifunctor
-import Data.Graph
 import Data.List
 import Data.Monoid
 }
@@ -215,19 +214,31 @@ attr BExpr IExpr
 type Init   = Label
 type Finals = [Label]
 
-type Arc a  = (a, a)
+data Arc a
+  = Intra { from_Intra :: a, to_Intra :: a }
+  | Inter { from_Inter :: a, to_Inter :: a, placeHolder_Inter :: a, placeHolder_Inter2 :: a }
+  deriving Eq
+
+instance Show a => Show (Arc a) where
+  show (Intra x y)     = show (x, y)
+  show (Inter x y q w) = undefined -- voor nu
+
 type Flow   = [Arc Label]
 
 fromArc :: (a -> b) -> (a, a) -> (b, b)
 fromArc f = bimap f f
+
+reverseArc :: Arc a -> Arc a
+reverseArc (Intra x y)     = Intra y x
+reverseArc (Inter _ _ _ _) = undefined -- voor nu
 
 type Block = Either Stat' (BExpr, Label)
 }
 
 
 attr Program'
-  syn cfg    :: Graph
-  syn rcfg   :: Graph
+  syn cfg    :: {[Arc Label]}
+  syn rcfg   :: {[Arc Label]}
   syn init   :: Init
   syn finals :: Finals
   syn blocks :: {[Block]}
@@ -324,20 +335,19 @@ sem Stat'
 
 sem Program'
   | Program'
-    loc.c      = let l = fmap (fromArc getLabel) @stat.flow
-                 in buildG (findBounds l) l
+    loc.c      = @stat.flow
     lhs.cfg    = @loc.c
-       .rcfg   = transposeG @loc.c
+       .rcfg   = fmap reverseArc @loc.c
 
 sem Stat'
   | IfThenElse' lhs.flow = @stat1.flow ++  @stat2.flow ++
-                           [(@labelc, @stat1.init)] ++ [(@labelc, @stat2.init)]
-  | While'      lhs.flow = let extra = [(x, @labelc) | x <- @stat.finals] ++
-                                       [(x, @labelc) | x <- @stat.continueInits]
-                           in concat [@stat.flow, pure (@labelc, @stat.init), extra]
+                           [Intra @labelc @stat1.init] ++ [Intra @labelc @stat2.init]
+  | While'      lhs.flow = let extra = [Intra x @labelc | x <- @stat.finals] ++
+                                       [Intra x @labelc | x <- @stat.continueInits]
+                           in concat [@stat.flow, [Intra @labelc @stat.init], extra]
                 lhs.continueInits = []
   | Call'       lhs.flow = [] -- Alleen voor Interprocedural belangrijk
-  | Seq'        lhs.flow = let extra = [(x, @stat2.init) | x <- @stat1.finals]
+  | Seq'        lhs.flow = let extra = [Intra x @stat2.init | x <- @stat1.finals]
                            in concat [@stat1.flow, @stat2.flow, extra]
   | Continue'   lhs.continueInits = [@label]
 
@@ -377,9 +387,4 @@ sem Stat'
 nextUnique :: Label -> (Label, Label)
 nextUnique (Label x) = (Label (x + 1), Label x)
 
--- Vindt de grenzen van de control flow graph
-findBounds :: Foldable t => t Edge -> (Int, Int)
-findBounds =
-  let f (cmin, cmax) (x, y) = (min cmin (min x y), max cmax (max x y))
-  in foldl' f (maxBound, minBound)
 }
