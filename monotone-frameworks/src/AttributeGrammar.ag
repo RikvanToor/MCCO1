@@ -13,6 +13,7 @@ data Program
 data Program'
   | Program'  procs :: Procs'
               stat  :: Stat'
+  deriving Program' : Show
 
 
 type Procs  = [ Proc  ]
@@ -95,9 +96,6 @@ data Code
 -- Lelijke instances, maar ze maken het wel mooi in de output                 --
 --------------------------------------------------------------------------------
 {
-instance Show Program' where
-  show (Program' _ stat) = "Program Listing:\nNote: Show Procs is not implemented!)\n\n" ++ show stat
-
 instance Show Stat' where
   show s =
     case s of
@@ -206,6 +204,9 @@ attr Proc Procs
 attr Stat
   syn transformed :: Stat'
 
+attr BExpr IExpr
+  syn copy :: self
+
 {- Alleen de types die een accent-versie hebben krijgen het transformed
  - attribuut omdat daar labels aan verbonden moeten worden.
  -}
@@ -220,7 +221,7 @@ type Flow   = [Arc Label]
 fromArc :: (a -> b) -> (a, a) -> (b, b)
 fromArc f = bimap f f
 
-type Block = Label -- ik weet nog niet wat block moet worden, is voor morgen
+type Block = Either Stat' (BExpr, Label)
 }
 
 
@@ -343,23 +344,21 @@ sem Stat'
 -- Blocks
 
 sem Program'
-  | Program'    lhs.blocks = undefined
+  | Program'    lhs.blocks = @stat.blocks
 
 sem Stat'
-  | Skip'       lhs.blocks = undefined
-  | IfThenElse' lhs.blocks = undefined
-  | While'      lhs.blocks = undefined
-  | IAssign'    lhs.blocks = undefined
-  | Call'       lhs.blocks = undefined
-  | Seq'        lhs.blocks = undefined
-  | BAssign'    lhs.blocks = undefined
-  | Malloc'     lhs.blocks = undefined
-  | RefAssign'  lhs.blocks = undefined
-  | Free'       lhs.blocks = undefined
-  | Continue'   lhs.blocks = undefined
-  | Break'      lhs.blocks = undefined
-
-
+  | Skip'       lhs.blocks = [Left $ Skip' @label]
+  | IfThenElse' lhs.blocks = [Right (@cond.copy, @labelc)] ++ @stat1.blocks ++ @stat2.blocks
+  | While'      lhs.blocks = [Right (@cond.copy, @labelc)] ++ @stat.blocks
+  | IAssign'    lhs.blocks = [Left $ IAssign' @label @name @val]
+  | Call'       lhs.blocks = [] -- WUT
+  | Seq'        lhs.blocks = @stat1.blocks ++ @stat2.blocks
+  | BAssign'    lhs.blocks = [Left $ BAssign' @label @name @val]
+  | Malloc'     lhs.blocks = [Left $ Malloc' @label @name @size]
+  | RefAssign'  lhs.blocks = [Left $ RefAssign' @label @ptr @val]
+  | Free'       lhs.blocks = [Left $ Free' @label @ptr]
+  | Continue'   lhs.blocks = [Left $ Continue' @label]
+  | Break'      lhs.blocks = [Left $ Break' @label]
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --
