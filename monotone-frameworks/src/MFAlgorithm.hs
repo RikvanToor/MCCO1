@@ -5,13 +5,14 @@ module MFAlgorithm where
 import           AttributeGrammar
 import           Control.Monad.State
 import           Data.List
-import           Data.Map (Map)
+import           Data.Map.Strict (Map)
 import           Data.Maybe
 import           Data.Set (Set)
-import qualified Data.Map as M
-import qualified Data.Set as S
+import qualified Data.Map.Strict as M
+import qualified Data.Set        as S
 
 import           Arc
+import           AnalysisHelpers
 
 --
 --  * l : labels
@@ -23,9 +24,6 @@ data MonotoneFramework t = MonotoneFramework
   , extremalValue  :: t
   } deriving Eq
 
-instance Show t => Show (MonotoneFramework t) where
-  show = undefined
-
 newtype Analysis_AE  = AE  (Set Expr  ) deriving (Eq, Ord, Show)
 newtype Analysis_SLV = SLV (Set String) deriving (Eq, Ord, Show)
 
@@ -33,17 +31,20 @@ class Eq l => Lattice l where
   -- Het eerste argument is voor zodat je waardes in de bottom verzameling kan
   -- stoppen.
   bottom :: l -> l
-  joinl   :: l -> l -> l
+  joinl  :: l -> l -> l
+
+  joinls :: Foldable t => t l -> l
+  joinls = foldr1 joinl
 
   before :: l -> l -> Bool
   before x y = x `joinl` y == x
 
 instance Lattice Analysis_AE where
-  bottom             = id -- Set AExp
+  bottom              = id -- Set AExp
   joinl (AE x) (AE y) = AE (S.intersection x y)
 
 instance Lattice Analysis_SLV where
-  bottom               = const $ SLV (S.empty) -- empty Set
+  bottom                = const $ SLV (S.empty) -- empty Set
   joinl (SLV x) (SLV y) = SLV (S.union x y)
 
 -- Maximal Fixed Point
@@ -51,7 +52,7 @@ instance Lattice Analysis_SLV where
 -- Type voor de iteratie
 type IterationState t =
   State
-    ( [Arc Label] -- Stack van kanten
+    ( [Arc Label] -- Kantenstapel
     , Map Label t -- Huidige staat van de analysis
     )
 
@@ -70,10 +71,20 @@ maximalFixedPoint MonotoneFramework{..} =
               else bottom lattice
       analysis = M.fromList [(l, val l) | l <- nodes flow ++ extremalLabels]
 
-      -- transfer :: Lattice t => Label -> Map Label t -> Map Label t
-      transfer = id
+      transfer l = l -- (l - kill l) + gen l --TODO
 
-      -- Iteration,
+      -- Iteratie (Volgens het boek imperatief: dus met een state monad)
+      -- w is de staat van de kantenstapel en a is de staat van de analyse. de
+      -- analysis functie is een helper om het leesbaar te houden.
+      --
+      -- Wanneer w geen kanten meer bevat zijn we klaar. Anders is er nog een
+      -- eerste kant die we moeten analyseren. Als de conditie (cond) /niet/
+      -- waar is, wordt het binnenste gedeelte uitgevoerd:
+      --
+      --  * de staat van de analyse wordt aangepast
+      --  * elke kant in de CFG die van de /volgende/ toestand vertrekt wordt op
+      --    de kantenstapel gelegd.
+
       step :: Lattice t => IterationState t ()
       step =
         do
@@ -96,6 +107,46 @@ maximalFixedPoint MonotoneFramework{..} =
   in mfp
 
 -- Testing
+
+class Lattice t => KillGen t where
+  kill :: [Block] -> Label -> t
+  gen  :: [Block] -> Label -> t
+
+
+instance KillGen Analysis_AE where
+  gen b l =
+    case lookup l b of
+      Nothing -> error "label {} does not occur in the analysis"
+      Just x ->
+        case x of
+          Right expr -> AE (S.singleton (B expr))
+          Left  stat ->
+            case stat of
+              Skip'     _        -> AE (S.empty)
+              IAssign'  _ _ expr -> AE (S.singleton (I expr))
+              BAssign'  _ _ expr -> AE (S.singleton (B expr))
+              Continue' _        -> AE (S.empty)
+              Break'    _        -> AE (S.empty)
+
+  kill b l =
+    case lookup l b of
+      Nothing -> error "label {} does not occur in the analysis"
+      Just x ->
+        case x of
+          Right expr -> AE (S.empty)
+          Left  stat ->
+            case stat of
+              Skip'     _        -> AE (S.empty)
+              IAssign'  _ v expr ->
+                AE (S.fromList [ e
+                               | e <- expressions (I expr)
+                               , v `notFreeIn` (I expr)])
+              BAssign'  _ v expr ->
+                AE (S.fromList [ e
+                               | e <- expressions (B expr)
+                               , v `notFreeIn` (B expr)])
+              Continue' _        -> AE (S.empty)
+              Break'    _        -> AE (S.empty)
 
 testAE =
   MonotoneFramework

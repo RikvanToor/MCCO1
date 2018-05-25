@@ -216,7 +216,7 @@ type Finals = [Label]
 
 type Flow   = Graph Label
 
-type Block = Either Stat' (BExpr, Label)
+type Block = (Label, Either Stat' BExpr)
 }
 
 
@@ -341,18 +341,18 @@ sem Program'
   | Program'    lhs.blocks = @stat.blocks
 
 sem Stat'
-  | Skip'       lhs.blocks = [Left $ Skip' @label]
-  | IfThenElse' lhs.blocks = [Right (@cond.copy, @labelc)] ++ @stat1.blocks ++ @stat2.blocks
-  | While'      lhs.blocks = [Right (@cond.copy, @labelc)] ++ @stat.blocks
-  | IAssign'    lhs.blocks = [Left $ IAssign' @label @name @val]
+  | Skip'       lhs.blocks = [(@label, Left $ Skip' @label)]
+  | IfThenElse' lhs.blocks = [(@labelc, Right @cond.copy)] ++ @stat1.blocks ++ @stat2.blocks
+  | While'      lhs.blocks = [(@labelc, Right @cond.copy)] ++ @stat.blocks
+  | IAssign'    lhs.blocks = [(@label, Left $ IAssign' @label @name @val)]
   | Call'       lhs.blocks = [] -- WUT
   | Seq'        lhs.blocks = @stat1.blocks ++ @stat2.blocks
-  | BAssign'    lhs.blocks = [Left $ BAssign' @label @name @val]
-  | Malloc'     lhs.blocks = [Left $ Malloc' @label @name @size]
-  | RefAssign'  lhs.blocks = [Left $ RefAssign' @label @ptr @val]
-  | Free'       lhs.blocks = [Left $ Free' @label @ptr]
-  | Continue'   lhs.blocks = [Left $ Continue' @label]
-  | Break'      lhs.blocks = [Left $ Break' @label]
+  | BAssign'    lhs.blocks = [(@label, Left $ BAssign' @label @name @val)]
+  | Malloc'     lhs.blocks = [(@label, Left $ Malloc' @label @name @size)]
+  | RefAssign'  lhs.blocks = [(@label, Left $ RefAssign' @label @ptr @val)]
+  | Free'       lhs.blocks = [(@label, Left $ Free' @label @ptr)]
+  | Continue'   lhs.blocks = [(@label, Left $ Continue' @label)]
+  | Break'      lhs.blocks = [(@label, Left $ Break' @label)]
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --
