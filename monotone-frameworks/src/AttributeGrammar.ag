@@ -62,7 +62,7 @@ data IExpr
   | Times         left :: IExpr  right :: IExpr
   | Divide        left :: IExpr  right :: IExpr
   | Deref         ptr  :: IExpr
-  deriving IExpr : Eq
+  deriving IExpr : Eq, Ord
 
 data BExpr
   | BConst        val  :: Bool
@@ -76,13 +76,13 @@ data BExpr
   | And           left :: BExpr  right :: BExpr
   | Or            left :: BExpr  right :: BExpr
   | Not           val  :: BExpr
-  deriving BExpr : Eq
+  deriving BExpr : Eq, Ord
 
 type Exprs  = [ Expr  ]
 data Expr
   | B BExpr
   | I IExpr
-  deriving Expr : Eq, Show
+  deriving Expr : Eq, Ord, Show
 
 data Code
   | CBExpr   BExpr
