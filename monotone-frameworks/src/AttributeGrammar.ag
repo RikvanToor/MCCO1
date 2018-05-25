@@ -1,7 +1,7 @@
 {
-import Data.Bifunctor
 import Data.List
 import Data.Monoid
+import Arc
 }
 
 data Program
@@ -214,23 +214,7 @@ attr BExpr IExpr
 type Init   = Label
 type Finals = [Label]
 
-data Arc a
-  = Intra { from_Intra :: a, to_Intra :: a }
-  | Inter { from_Inter :: a, to_Inter :: a, placeHolder_Inter :: a, placeHolder_Inter2 :: a }
-  deriving Eq
-
-instance Show a => Show (Arc a) where
-  show (Intra x y)     = show (x, y)
-  show (Inter x y q w) = undefined -- voor nu
-
-type Flow   = [Arc Label]
-
-fromArc :: (a -> b) -> (a, a) -> (b, b)
-fromArc f = bimap f f
-
-reverseArc :: Arc a -> Arc a
-reverseArc (Intra x y)     = Intra y x
-reverseArc (Inter _ _ _ _) = undefined -- voor nu
+type Flow   = Graph Label
 
 type Block = Either Stat' (BExpr, Label)
 }
@@ -337,7 +321,7 @@ sem Program'
   | Program'
     loc.c      = @stat.flow
     lhs.cfg    = @loc.c
-       .rcfg   = fmap reverseArc @loc.c
+       .rcfg   = reverseGraph @loc.c
 
 sem Stat'
   | IfThenElse' lhs.flow = @stat1.flow ++  @stat2.flow ++

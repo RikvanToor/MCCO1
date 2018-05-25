@@ -3,11 +3,15 @@
 module MFAlgorithm where
 
 import           AttributeGrammar
-import           Data.Map (Map)
-import           Data.Set (Set)
+import           Control.Monad.State
 import           Data.List
+import           Data.Map (Map)
+import           Data.Maybe
+import           Data.Set (Set)
 import qualified Data.Map as M
 import qualified Data.Set as S
+
+import           Arc
 
 --
 --  * l : labels
@@ -22,40 +26,76 @@ data MonotoneFramework t = MonotoneFramework
 instance Show t => Show (MonotoneFramework t) where
   show = undefined
 
-newtype Analysis_AE  = AE  { lattice_ae  :: Set Expr   } deriving (Eq, Ord, Show)
-newtype Analysis_SLV = SLV { lattice_slv :: Set String } deriving (Eq, Ord, Show)
+newtype Analysis_AE  = AE  (Set Expr  ) deriving (Eq, Ord, Show)
+newtype Analysis_SLV = SLV (Set String) deriving (Eq, Ord, Show)
 
 class Eq l => Lattice l where
   -- Het eerste argument is voor zodat je waardes in de bottom verzameling kan
   -- stoppen.
   bottom :: l -> l
-  join   :: l -> l -> l
+  joinl   :: l -> l -> l
 
   before :: l -> l -> Bool
-  before x y = x `join` y == x
+  before x y = x `joinl` y == x
 
 instance Lattice Analysis_AE where
   bottom             = id -- Set AExp
-  join (AE x) (AE y) = AE (S.intersection x y)
+  joinl (AE x) (AE y) = AE (S.intersection x y)
 
 instance Lattice Analysis_SLV where
   bottom               = const $ SLV (S.empty) -- empty Set
-  join (SLV x) (SLV y) = SLV (S.union x y)
+  joinl (SLV x) (SLV y) = SLV (S.union x y)
 
 -- Maximal Fixed Point
 
-mfpinit
+-- Type voor de iteratie
+type IterationState t =
+  State
+    ( [Arc Label] -- Stack van kanten
+    , Map Label t -- Huidige staat van de analysis
+    )
+
+maximalFixedPoint
   :: Lattice t
   => MonotoneFramework t -- Instantie van monotone framework
   -> Map Label t
-mfpinit MonotoneFramework{..}  =
-  let val v = if   v `elem` extremalLabels
+maximalFixedPoint MonotoneFramework{..} =
+  let {- Initialisatie (volgens het boek)
+       - aan het einde van de initialisatie W = reverse flow en er wordt een map
+       - aangemaakt waarin alle voor elke l in F of E: als l in E dan
+       - analysis[l] = extremalValue, anders analysis[l] = bottom
+       -}
+      val v = if   v `elem` extremalLabels
               then extremalValue
               else bottom lattice
-      -- later veranderen voor Inter
-      labels_unique = sort . nub . concat $ [[x,y] | (Intra x y) <- flow]
-      initial = M.fromList [(l, val l) | l <- labels_unique]
-  in initial
+      analysis = M.fromList [(l, val l) | l <- nodes flow ++ extremalLabels]
+
+      -- transfer :: Lattice t => Label -> Map Label t -> Map Label t
+      transfer = id
+
+      -- Iteration,
+      step :: Lattice t => IterationState t ()
+      step =
+        do
+          (w, a) <- get
+          let analysis l = fromJust $ M.lookup l a
+          case w of
+            []     -> return ()
+            ((Intra from to):xs) -> -- TODO: Inter
+              do
+                let cond = (transfer (analysis from)) `before` (analysis to)
+                unless cond $ do
+                  let a' = M.update (Just . joinl (transfer (analysis from))) to a
+                      w' = foldl' (flip (:)) xs [Intra to t
+                                                | (Intra f t) <- flow
+                                                , f == to]
+                  put (w', a')
+                step
+
+      (_, mfp) = snd (runState step (reverse flow, analysis))
+  in mfp
+
+-- Testing
 
 testAE =
   MonotoneFramework
