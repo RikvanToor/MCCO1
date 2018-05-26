@@ -1,3 +1,4 @@
 Lexer.hs
+AttributeGrammar.ag
 AttributeGrammar.hs
 Parser.hs

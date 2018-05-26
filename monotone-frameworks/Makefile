@@ -21,11 +21,18 @@ src/Parser.hs:
 #  -w              --wrappers                      generate wappers for semantic domains
 #  -s              --signatures                    generate signatures for semantic functions
 src/AttributeGrammar.hs:
+	cpp -w src/AttributeGrammar_cpp.ag | egrep -v "^#" > src/AttributeGrammar.ag
 	cd src && uuagc -Hdcfws AttributeGrammar.ag --module AttributeGrammar
 
 #----------------------------
 
 clean:
-	rm -f src/AttributeGrammar.hs src/Parser.hs src/Lexer.hs src/*.hi src/*.o src/Main
+	rm -f src/AttributeGrammar.hs \
+		    src/Parser.hs           \
+				src/Lexer.hs            \
+			  src/*.hi                \
+				src/*.o                 \
+				src/Main                \
+				src/AttributeGrammar.ag
 
 .PHONY: default all clean

@@ -1,3 +1,10 @@
+optpragmas
+{
+{-# LANGUAGE StandaloneDeriving #-}
+}
+
+#define PRETTY_PRINT 1
+
 {
 import Data.List
 import Data.Monoid
@@ -53,6 +60,11 @@ data Stat'
   | RefAssign'     label     :: Label   ptr       :: IExpr   val    :: IExpr
   | Continue'      label     :: Label
   | Break'         label     :: Label
+{
+#if PRETTY_PRINT != 1
+  deriving instance Show Stat'
+#endif
+}
 
 data IExpr
   | IConst        val  :: Int
@@ -95,6 +107,7 @@ data Code
 -- Lelijke instances, maar ze maken het wel mooi in de output                 --
 --------------------------------------------------------------------------------
 {
+#if PRETTY_PRINT == 1
 instance Show Stat' where
   show s =
     case s of
@@ -158,6 +171,7 @@ instance Show BExpr where
       And           left  right -> infixop left "&&" right
       Or            left  right -> infixop left "||" right
       Not           val         -> "!(" ++ show val ++ ")"
+#endif
 }
 --------------------------------------------------------------------------------
 --                           2. Attribuutdeclaraties                          --

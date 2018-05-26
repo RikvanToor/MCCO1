@@ -20,9 +20,10 @@ import           AnalysisHelpers
 data MonotoneFramework t = MonotoneFramework
   { lattice        :: t
   , flow           :: [Arc Label]
+  , blocks         :: [Block]
   , extremalLabels :: [Label]
   , extremalValue  :: t
-  } deriving Eq
+  }
 
 newtype Analysis_AE  = AE  (Set Expr  ) deriving (Eq, Ord, Show)
 newtype Analysis_SLV = SLV (Set String) deriving (Eq, Ord, Show)
@@ -71,7 +72,10 @@ maximalFixedPoint MonotoneFramework{..} =
               else bottom lattice
       analysis = M.fromList [(l, val l) | l <- nodes flow ++ extremalLabels]
 
-      transfer l = l -- (l - kill l) + gen l --TODO
+      -- Overdrachtsfuncties volgens figuur 2.6 in NNH
+      transfer :: Lattice t => Label -> Map Label t -> Map Label t
+      transfer l current =
+        (current `M.difference` (kill blocks l)) `M.union` gen blocks l
 
       -- Iteratie (Volgens het boek imperatief: dus met een state monad)
       -- w is de staat van de kantenstapel en a is de staat van de analyse. de
@@ -94,9 +98,9 @@ maximalFixedPoint MonotoneFramework{..} =
             []     -> return ()
             ((Intra from to):xs) -> -- TODO: Inter
               do
-                let cond = (transfer (analysis from)) `before` (analysis to)
+                let cond = (transfer from (analysis from)) `before` (analysis to)
                 unless cond $ do
-                  let a' = M.update (Just . joinl (transfer (analysis from))) to a
+                  let a' = M.update (Just . joinl (transfer from (analysis from))) to a
                       w' = foldl' (flip (:)) xs [Intra to t
                                                 | (Intra f t) <- flow
                                                 , f == to]
@@ -156,6 +160,7 @@ testAE =
           , I (Plus  (Var "a") (IConst 1))
           ]))
     [Intra (Label 3) (Label 4), Intra (Label 7) (Label 8), Intra (Label 5) (Label 7), Intra (Label 8) (Label 5), Intra (Label 4) (Label 5)]
+    []
     [(Label 3)]
     (AE (S.empty))
 
@@ -164,6 +169,7 @@ testSLV =
     (SLV (S.fromList
           ["a", "b", "x", "y"]))
     (fmap reverseArc [Intra (Label 3) (Label 4), Intra (Label 7) (Label 8), Intra (Label 5) (Label 7), Intra (Label 8) (Label 5), Intra (Label 4) (Label 5)])
+    []
     [(Label 5)]
     (SLV (S.empty))
 
