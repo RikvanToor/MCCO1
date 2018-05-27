@@ -1,11 +1,15 @@
 module Arc where
 
+import Data.Function
 import Data.List
 
 data Arc a
   = Intra { from :: a, to :: a }
   | Inter { from :: a, to :: a, placeholder1 :: a, placeholder2 :: a }
   deriving Eq
+
+instance Ord a => Ord (Arc a) where
+  compare = on compare from
 
 instance Show a => Show (Arc a) where
   show (Intra x y)     = show (x, y)
