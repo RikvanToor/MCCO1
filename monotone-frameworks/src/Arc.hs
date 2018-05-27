@@ -1,14 +1,4 @@
-module Arc
-  ( Arc(..)
-  , Graph
-  , inbound
-  , isInter
-  , isIntra
-  , nodes
-  , outbound
-  , reverseArc
-  , reverseGraph
-  ) where
+module Arc where
 
 import Data.List
 
@@ -49,9 +39,21 @@ inbound g on =
   in intra ++ inter
 
 outbound :: Eq a => Graph a -> a -> [a]
-outbound g from =
-  let intra = [x | Intra y x     <- g, y == from]
-      inter = [x | Inter y x _ _ <- g, y == from] -- TODO
+outbound g from_ =
+  let intra = [x | Intra y x     <- g, y == from_]
+      inter = [x | Inter y x _ _ <- g, y == from_] -- TODO
+  in intra ++ inter
+
+listArcsTowards :: Eq a => Graph a -> a -> [Arc a]
+listArcsTowards g to =
+  let intra = [Intra x y     | Intra x y     <- g, y == to]
+      inter = [Inter x y q w | Inter x y q w <- g, y == to]
+  in intra ++ inter
+
+listArcsFrom :: Eq a => Graph a -> a -> [Arc a]
+listArcsFrom g from =
+  let intra = [Intra x y     | Intra x y     <- g, x == from]
+      inter = [Inter x y q w | Inter x y q w <- g, x == from]
   in intra ++ inter
 
 -- Predicaten over kanten

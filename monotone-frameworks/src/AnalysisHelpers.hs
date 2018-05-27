@@ -34,7 +34,7 @@ expressions :: Expr -> [Expr]
 expressions (I e) =
   case e of
     IConst _ -> []
-    Var name -> []
+    Var _    -> []
     Plus   l r -> concat [[I (Plus   l r)], expressions (I l), expressions (I r)]
     Minus  l r -> concat [[I (Minus  l r)], expressions (I l), expressions (I r)]
     Times  l r -> concat [[I (Times  l r)], expressions (I l), expressions (I r)]
@@ -43,7 +43,7 @@ expressions (I e) =
 expressions (B e) =
   case e of
     BConst _  -> []
-    BVar name -> []
+    BVar _    -> []
     LessThan     l r -> concat [[B (LessThan     l r)], expressions (I l), expressions (I r)]
     GreaterThan  l r -> concat [[B (GreaterThan  l r)], expressions (I l), expressions (I r)]
     LessEqual    l r -> concat [[B (LessEqual    l r)], expressions (I l), expressions (I r)]

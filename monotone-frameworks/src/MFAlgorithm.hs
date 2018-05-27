@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module MFAlgorithm where
 
@@ -14,11 +16,13 @@ import qualified Data.Set        as S
 import           Arc
 import           AnalysisHelpers
 
+import Debug.Trace -- Remove
+
 --
 --  * l : labels
 --  * t : lattice
 data MonotoneFramework t = MonotoneFramework
-  { lattice        :: t
+  { universe       :: t
   , flow           :: [Arc Label]
   , blocks         :: [Block]
   , extremalLabels :: [Label]
@@ -28,25 +32,53 @@ data MonotoneFramework t = MonotoneFramework
 newtype Analysis_AE  = AE  (Set Expr  ) deriving (Eq, Ord, Show)
 newtype Analysis_SLV = SLV (Set String) deriving (Eq, Ord, Show)
 
+{- Lattice type class
+ -
+ -}
 class Eq l => Lattice l where
+  type Elem l
+
   -- Het eerste argument is voor zodat je waardes in de bottom verzameling kan
   -- stoppen.
   bottom :: l -> l
   joinl  :: l -> l -> l
 
-  joinls :: Foldable t => t l -> l
-  joinls = foldr1 joinl
-
   before :: l -> l -> Bool
   before x y = x `joinl` y == x
 
+  -- Lijst versie van join semi-lattice
+  joinls :: Foldable t => t l -> l
+  joinls = foldr1 joinl
+
+  -- Bewerkingen over verzamelingen vereisen een manier om van tralie naar
+  -- verzameling te gaan
+  toSet   :: l -> Set (Elem l)
+  fromSet :: Set (Elem l) -> l
+
+  setOperation
+    :: (Set (Elem l) -> Set (Elem l) -> Set (Elem l))
+    -> l -> l -> l
+  setOperation op l1 l2 =
+    let set1 = toSet l1
+        set2 = toSet l2
+    in fromSet (set1 `op` set2)
+
 instance Lattice Analysis_AE where
+  type Elem Analysis_AE = Expr
+
   bottom              = id -- Set AExp
   joinl (AE x) (AE y) = AE (S.intersection x y)
 
+  toSet (AE x)        = x
+  fromSet             = AE
+
+
 instance Lattice Analysis_SLV where
-  bottom                = const $ SLV (S.empty) -- empty Set
-  joinl (SLV x) (SLV y) = SLV (S.union x y)
+  type Elem Analysis_SLV = String
+  bottom                 = const $ SLV (S.empty) -- empty Set
+  joinl (SLV x) (SLV y)  = SLV (S.union x y)
+  toSet (SLV x)          = x
+  fromSet                = SLV
 
 -- Maximal Fixed Point
 
@@ -58,7 +90,7 @@ type IterationState t =
     )
 
 maximalFixedPoint
-  :: Lattice t
+  :: (KillGen t, Ord (Elem t), Show (t))
   => MonotoneFramework t -- Instantie van monotone framework
   -> Map Label t
 maximalFixedPoint MonotoneFramework{..} =
@@ -69,13 +101,8 @@ maximalFixedPoint MonotoneFramework{..} =
        -}
       val v = if   v `elem` extremalLabels
               then extremalValue
-              else bottom lattice
-      analysis = M.fromList [(l, val l) | l <- nodes flow ++ extremalLabels]
-
-      -- Overdrachtsfuncties volgens figuur 2.6 in NNH
-      transfer :: Lattice t => Label -> Map Label t -> Map Label t
-      transfer l current =
-        (current `M.difference` (kill blocks l)) `M.union` gen blocks l
+              else bottom universe -- universe wordt hier geinjecteerd voor het geval dat bottom niet de lege verzameling is
+      initial = M.fromList [(l, val l) | l <- nodes flow ++ extremalLabels]
 
       -- Iteratie (Volgens het boek imperatief: dus met een state monad)
       -- w is de staat van de kantenstapel en a is de staat van de analyse. de
@@ -89,9 +116,14 @@ maximalFixedPoint MonotoneFramework{..} =
       --  * elke kant in de CFG die van de /volgende/ toestand vertrekt wordt op
       --    de kantenstapel gelegd.
 
-      step :: Lattice t => IterationState t ()
+      step :: (KillGen t, Ord (Elem t), Show (t)) => IterationState t ()
       step =
-        do
+        let
+          -- Overdrachtsfuncties volgens figuur 2.6 in NNH
+          transfer l current =
+            let diff = setOperation S.difference current (kill blocks l)
+            in setOperation S.union diff (gen blocks l)
+        in do
           (w, a) <- get
           let analysis l = fromJust $ M.lookup l a
           case w of
@@ -101,14 +133,13 @@ maximalFixedPoint MonotoneFramework{..} =
                 let cond = (transfer from (analysis from)) `before` (analysis to)
                 unless cond $ do
                   let a' = M.update (Just . joinl (transfer from (analysis from))) to a
-                      w' = foldl' (flip (:)) xs [Intra to t
-                                                | (Intra f t) <- flow
-                                                , f == to]
+                      w' = foldl' (flip (:)) xs (xs `listArcsFrom` to)
+
                   put (w', a')
                 step
 
-      (_, mfp) = snd (runState step (reverse flow, analysis))
-  in mfp
+      (_, mfp) = snd (runState step (reverse flow, initial))
+  in snd . snd . runState step $ (reverse flow, initial)
 
 -- Testing
 
@@ -160,7 +191,7 @@ testAE =
           , I (Plus  (Var "a") (IConst 1))
           ]))
     [Intra (Label 3) (Label 4), Intra (Label 7) (Label 8), Intra (Label 5) (Label 7), Intra (Label 8) (Label 5), Intra (Label 4) (Label 5)]
-    []
+    (map (\(x,y) -> (Label x, y)) [(3,Left (IAssign' (Label 3) "x" (Plus (Var "a") (Var "b")))),(4,Left (IAssign' (Label 4) "y" (Times (Var "a") (Var "b")))),(5,Right (GreaterThan (Var "y") (Plus (Var "a") (Var "b")))),(7,Left (IAssign' (Label 7) "a" (Plus (Var "a") (IConst 1)))),(8,Left (IAssign' (Label 8) "x" (Plus (Var "a") (Var "b"))))])
     [(Label 3)]
     (AE (S.empty))
 
@@ -169,7 +200,7 @@ testSLV =
     (SLV (S.fromList
           ["a", "b", "x", "y"]))
     (fmap reverseArc [Intra (Label 3) (Label 4), Intra (Label 7) (Label 8), Intra (Label 5) (Label 7), Intra (Label 8) (Label 5), Intra (Label 4) (Label 5)])
-    []
+    (map (\(x,y) -> (Label x, y)) [(3,Left (IAssign' (Label 3) "x" (Plus (Var "a") (Var "b")))),(4,Left (IAssign' (Label 4) "y" (Times (Var "a") (Var "b")))),(5,Right (GreaterThan (Var "y") (Plus (Var "a") (Var "b")))),(7,Left (IAssign' (Label 7) "a" (Plus (Var "a") (IConst 1)))),(8,Left (IAssign' (Label 8) "x" (Plus (Var "a") (Var "b"))))])
     [(Label 5)]
     (SLV (S.empty))
 

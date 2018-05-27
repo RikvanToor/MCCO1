@@ -6,8 +6,6 @@ optpragmas
 #define PRETTY_PRINT 1
 
 {
-import Data.List
-import Data.Monoid
 import Arc
 }
 
@@ -20,7 +18,6 @@ data Program'
   | Program'  procs :: Procs'
               stat  :: Stat'
   deriving Program' : Show
-
 
 type Procs  = [ Proc  ]
 type Procs' = [ Proc' ]
@@ -62,7 +59,7 @@ data Stat'
   | Break'         label     :: Label
 {
 #if PRETTY_PRINT != 1
-  deriving instance Show Stat'
+deriving instance Show Stat'
 #endif
 }
 
@@ -75,6 +72,11 @@ data IExpr
   | Divide        left :: IExpr  right :: IExpr
   | Deref         ptr  :: IExpr
   deriving IExpr : Eq, Ord
+{
+#if PRETTY_PRINT != 1
+deriving instance Show IExpr
+#endif
+}
 
 data BExpr
   | BConst        val  :: Bool
@@ -89,6 +91,11 @@ data BExpr
   | Or            left :: BExpr  right :: BExpr
   | Not           val  :: BExpr
   deriving BExpr : Eq, Ord
+{
+#if PRETTY_PRINT != 1
+deriving instance Show BExpr
+#endif
+}
 
 type Exprs  = [ Expr  ]
 data Expr
@@ -201,8 +208,12 @@ instance Show BExpr where
 {
 newtype Label = Label { getLabel :: Int } deriving (Eq, Ord)
 
+#if PRETTY_PRINT == 1
 instance Show Label where
   show (Label x) = concat ["\ESC[93m\ESC[1m", show x, "\ESC[0m"]
+#else
+deriving instance Show Label
+#endif
 }
 
 attr Procs Proc Stat
