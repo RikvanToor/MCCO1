@@ -253,7 +253,16 @@ type Finals = [Label]
 
 type Flow   = Graph Label
 
-type Block = (Label, Either Stat' BExpr)
+data ProcBlock = ProcBlock String Exprs String
+  deriving Show
+
+data Block' = Statement  Stat'
+            | Boolean    BExpr
+            | CallProc   ProcBlock
+            | ReturnProc ProcBlock
+  deriving Show
+
+type Block = (Label, Block')
 }
 
 
@@ -378,18 +387,19 @@ sem Program'
   | Program'    lhs.blocks = @stat.blocks
 
 sem Stat'
-  | Skip'       lhs.blocks = [(@label, Left $ Skip' @label)]
-  | IfThenElse' lhs.blocks = [(@labelc, Right @cond.copy)] ++ @stat1.blocks ++ @stat2.blocks
-  | While'      lhs.blocks = [(@labelc, Right @cond.copy)] ++ @stat.blocks
-  | IAssign'    lhs.blocks = [(@label, Left $ IAssign' @label @name @val)]
-  | Call'       lhs.blocks = [] -- WUT
+  | Skip'       lhs.blocks = [(@label, Statement $ Skip' @label)]
+  | IfThenElse' lhs.blocks = [(@labelc, Boolean @cond.copy)] ++ @stat1.blocks ++ @stat2.blocks
+  | While'      lhs.blocks = [(@labelc, Boolean @cond.copy)] ++ @stat.blocks
+  | IAssign'    lhs.blocks = [(@label, Statement $ IAssign' @label @name @val)]
+  | Call'       lhs.blocks = let asdf = ProcBlock @name @params @out in
+                              [(@labelCall, CallProc asdf), (@labelExit, ReturnProc asdf)]
   | Seq'        lhs.blocks = @stat1.blocks ++ @stat2.blocks
-  | BAssign'    lhs.blocks = [(@label, Left $ BAssign' @label @name @val)]
-  | Malloc'     lhs.blocks = [(@label, Left $ Malloc' @label @name @size)]
-  | RefAssign'  lhs.blocks = [(@label, Left $ RefAssign' @label @ptr @val)]
-  | Free'       lhs.blocks = [(@label, Left $ Free' @label @ptr)]
-  | Continue'   lhs.blocks = [(@label, Left $ Continue' @label)]
-  | Break'      lhs.blocks = [(@label, Left $ Break' @label)]
+  | BAssign'    lhs.blocks = [(@label, Statement $ BAssign' @label @name @val)]
+  | Malloc'     lhs.blocks = [(@label, Statement $ Malloc' @label @name @size)]
+  | RefAssign'  lhs.blocks = [(@label, Statement $ RefAssign' @label @ptr @val)]
+  | Free'       lhs.blocks = [(@label, Statement $ Free' @label @ptr)]
+  | Continue'   lhs.blocks = [(@label, Statement $ Continue' @label)]
+  | Break'      lhs.blocks = [(@label, Statement $ Break' @label)]
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --
