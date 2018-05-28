@@ -52,7 +52,7 @@ data Stat'
   | Skip'          label     :: Label
   | IfThenElse'    labelc    :: Label   cond      :: BExpr   stat1  :: Stat'  stat2  :: Stat'
   | While'         labelc    :: Label   cond      :: BExpr   stat   :: Stat'
-  | Call'          labelCall :: Label   labelExit :: Label     name   :: String params :: Exprs  out :: String
+  | Call'          labelCall :: Label   labelExit :: Label     name   :: String params :: {Exprs}  out :: String
   | IAssign'       label     :: Label   name      :: String  val    :: IExpr
   | BAssign'       label     :: Label   name      :: String  val    :: BExpr
   | Seq'           stat1     :: Stat' stat2     :: Stat'
