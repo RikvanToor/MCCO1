@@ -17,7 +17,9 @@ data Program
 data Program'
   | Program'  procs :: Procs'
               stat  :: Stat'
-  deriving Program' : Show
+#if PRETTY_PRINT != 1
+deriving instance Show Program'
+#endif
 
 type Procs  = [ Proc  ]
 type Procs' = [ Proc' ]
@@ -27,7 +29,9 @@ data Proc
 
 data Proc'
   | Proc'         labelEntry :: Label  labelReturn :: Label    name :: String  inp :: {[String]}  out :: String   stat :: Stat'
-  deriving Proc' : Show
+#if PRETTY_PRINT != 1
+deriving instance Show Proc'
+#endif
 
 data Stat
   | Skip
@@ -143,7 +147,15 @@ instance Show Stat' where
       Break' label ->
         "[break] " ++ show label
       Call' labelCall labelExit name params out ->
-        ""
+        "[call " ++ name ++ "(" ++ concatMap ((++",") . show) params ++ out ++ ")]" ++ show labelCall ++ " " ++ show labelExit
+
+instance Show Program' where
+  show (Program' procs stat) = "Program':\n" ++ indentblock ((concatMap ((++"\n") . show) procs) ++ show stat)
+
+instance Show Proc' where
+  show (Proc' labelEntry labelReturn name inp out stat) = "proc " ++ name ++ 
+      "(" ++ concatMap (++ ", ") inp ++ "res " ++ out ++ ") is" ++ show labelEntry
+      ++ "\n" ++ indentblock (show stat) ++ "\nend " ++ show labelReturn ++ ";"
 
 -- helper functie die vooraan elke regel twee spaties stopt.
 indentblock :: String -> String
