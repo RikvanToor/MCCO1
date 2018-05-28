@@ -54,6 +54,9 @@ class Eq l => Lattice l where
   before :: l -> l -> Bool
   before x y = x `joinl` y == y
 
+  meet   :: l -> l -> Bool
+  meet x y = x `joinl` y == x
+
   joinls :: Foldable t => t l -> l
   joinls = foldr1 joinl
 
@@ -101,8 +104,11 @@ maximalFixedPoint MonotoneFramework{..} =
        -}
       transfer :: (KillGen t, Ord (Elem t)) => Label -> t -> t
       transfer l current =
-        let diff = setOperation S.difference current (kill blocks l)
-        in setOperation S.union diff (gen blocks l)
+        let killed =(kill blocks l)
+            genned = (gen blocks l)
+            killedResult = setOperation S.difference current killed
+            gennedResult = setOperation S.union killedResult genned
+        in  gennedResult
 
 
       {- 3. Iteratie
@@ -132,11 +138,11 @@ maximalFixedPoint MonotoneFramework{..} =
                   put (xs, a)
                 else do
                   let a' = M.update (Just . joinl (transfer from (analysis from))) to a
-                      w' = foldr (:) xs (flow `listArcsFrom` to)
+                      w' = foldl' (flip (:)) xs (flow `listArcsFrom` to)
 
                   put (w', a')
                 step
-  in snd . snd . runState step $ (flow, initial)
+  in snd . snd . runState step $ (reverse flow, initial)
 
 -- Kill & Gen sets
 --
@@ -163,21 +169,24 @@ instance Lattice Analysis_AE where
 instance KillGen Analysis_AE where
   gen b l =
     case lookup l b of
-      Nothing -> error "label {} does not occur in the analysis"
+      Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
       Just x ->
         case x of
           Right expr -> AE (S.singleton (B expr))
           Left  stat ->
             case stat of
               Skip'     _        -> AE (S.empty)
-              IAssign'  _ _ expr -> AE (S.singleton (I expr))
-              BAssign'  _ _ expr -> AE (S.singleton (B expr))
+              IAssign'  _ v expr ->
+                AE . S.fromList $ filter (freeIn v) (expressions (I expr))
+              BAssign'  _ v expr ->
+                AE . S.fromList $ filter (freeIn v) (expressions (B expr))
               Continue' _        -> AE (S.empty)
               Break'    _        -> AE (S.empty)
 
   kill b l =
-    case lookup l b of
-      Nothing -> error "label {} does not occur in the analysis"
+    let aexp_star = concatMap (either statExpressions (expressions . B) . snd) b
+    in case lookup l b of
+      Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
       Just x ->
         case x of
           Right expr -> AE (S.empty)
@@ -185,13 +194,9 @@ instance KillGen Analysis_AE where
             case stat of
               Skip'     _        -> AE (S.empty)
               IAssign'  _ v expr ->
-                AE (S.fromList [ e
-                               | e <- expressions (I expr)
-                               , v `notFreeIn` (I expr)])
+                AE . S.fromList $ filter (notFreeIn v) aexp_star
               BAssign'  _ v expr ->
-                AE (S.fromList [ e
-                               | e <- expressions (B expr)
-                               , v `notFreeIn` (B expr)])
+                AE . S.fromList $ filter (notFreeIn v) aexp_star
               Continue' _        -> AE (S.empty)
               Break'    _        -> AE (S.empty)
 

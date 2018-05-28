@@ -4,30 +4,40 @@ import AttributeGrammar
 
 -- Helper functies, voor nu zijn dat de helpers voor de kill-gen sets
 
--- Free variables
-notFreeIn :: String -> Expr -> Bool
-notFreeIn v (I e) =
+-- Alle variabelen in een expressie
+variables :: Expr -> [String]
+variables (I e) =
   case e of
-    IConst _ -> False
-    Var name -> v /= name
-    Plus   l r -> all (notFreeIn v . I) [l, r]
-    Minus  l r -> all (notFreeIn v . I) [l, r]
-    Times  l r -> all (notFreeIn v . I) [l, r]
-    Divide l r -> all (notFreeIn v . I) [l, r]
-    Deref  ptr -> notFreeIn v (I ptr)
-notFreeIn v (B e) =
+    IConst _ -> []
+    Var name -> [name]
+    Plus   l r -> variables (I l) ++ variables (I r)
+    Minus  l r -> variables (I l) ++ variables (I r)
+    Times  l r -> variables (I l) ++ variables (I r)
+    Divide l r -> variables (I l) ++ variables (I r)
+    Deref  ptr -> variables (I ptr)
+variables (B e) =
   case e of
-    BConst _  -> False
-    BVar name -> v /= name
-    LessThan     l r -> all (notFreeIn v . I) [l, r]
-    GreaterThan  l r -> all (notFreeIn v . I) [l, r]
-    LessEqual    l r -> all (notFreeIn v . I) [l, r]
-    GreaterEqual l r -> all (notFreeIn v . I) [l, r]
-    IEqual       l r -> all (notFreeIn v . I) [l, r]
-    BEqual       l r -> all (notFreeIn v . B) [l, r]
-    And          l r -> all (notFreeIn v . B) [l, r]
-    Or           l r -> all (notFreeIn v . B) [l, r]
-    Not val -> notFreeIn v (B val)
+    BConst _  -> []
+    BVar name -> [name]
+    LessThan     l r -> variables (I l) ++ variables (I r)
+    GreaterThan  l r -> variables (I l) ++ variables (I r)
+    LessEqual    l r -> variables (I l) ++ variables (I r)
+    GreaterEqual l r -> variables (I l) ++ variables (I r)
+    IEqual       l r -> variables (I l) ++ variables (I r)
+    BEqual       l r -> variables (B l) ++ variables (B r)
+    And          l r -> variables (B l) ++ variables (B r)
+    Or           l r -> variables (B l) ++ variables (B r)
+    Not val -> variables (B val)
+
+-- Vrije variabelen
+
+-- Controleert of een variabele @v@ vrij is in @expr@. Dat is het geval desda v
+-- niet genoemd wordt in een van de variabelen in @expr@. Als hij wel genoemd
+-- wordt dan is hij niet vrij.
+freeIn, notFreeIn :: String -> Expr -> Bool
+freeIn    v expr = not (notFreeIn v expr)
+notFreeIn v expr = v `elem` (variables expr)
+
 
 -- Expressions
 expressions :: Expr -> [Expr]
@@ -53,3 +63,21 @@ expressions (B e) =
     And          l r -> concat [[B (And          l r)], expressions (B l), expressions (B r)]
     Or           l r -> concat [[B (Or           l r)], expressions (B l), expressions (B r)]
     Not val -> expressions (B val)
+
+statExpressions :: Stat' -> [Expr]
+statExpressions e =
+  case e of
+    Skip' _ -> []
+    IfThenElse'  _ cond stat1 stat2 ->
+      expressions (B cond) ++ concatMap statExpressions [stat1, stat2]
+    While' _ cond stat ->
+      expressions (B cond) ++ (statExpressions stat)
+    Call' _ _ _ _ _    -> [] -- TODO: Inter
+    IAssign' _ _ val   -> expressions (I val)
+    BAssign' _ _ val   -> expressions (B val)
+    Seq' l r           -> concatMap statExpressions [l, r]
+    Malloc' _ _ size   -> expressions (I size)
+    Free' _ ptr        -> expressions (I ptr)
+    RefAssign' _ ptr val -> concatMap expressions [I ptr, I val]
+    Continue' _        -> []
+    Break'    _        -> []
