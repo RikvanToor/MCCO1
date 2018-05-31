@@ -236,17 +236,31 @@ instance Lattice Analysis_SLV where
 instance KillGen Analysis_SLV where
   kill b l =
     case lookup l b of
-      Nothing -> error "label {} does not occur in the analysis"
+      Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
       Just x ->
         case x of
-          _ -> undefined
+          Right expr -> fromSet S.empty
+          Left  stat ->
+            case stat of
+              Skip'     _     -> fromSet S.empty
+              IAssign'  _ v _ -> fromSet (S.singleton v)
+              BAssign'  _ v _ -> fromSet (S.singleton v)
+              Continue' _     -> fromSet (S.empty)
+              Break'    _     -> fromSet (S.empty)
 
   gen  b l =
     case lookup l b of
-      Nothing -> error "label {} does not occur in the analysis"
+      Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
       Just x ->
         case x of
-          _ -> undefined
+          Right expr -> fromSet . S.fromList . variables $ (B expr)
+          Left  stat ->
+            case stat of
+              Skip'     _     -> fromSet S.empty
+              IAssign'  _ _ a -> fromSet . S.fromList . variables $ (I a)
+              BAssign'  _ _ a -> fromSet . S.fromList . variables $ (B a)
+              Continue' _     -> fromSet (S.empty)
+              Break'    _     -> fromSet (S.empty)
 
 -- Test voor tijdens het programmeren. TODO: Verwijder dit in de uiteindelijke
 -- versie.
