@@ -7,4 +7,4 @@ import Test
 import Data.Graph
 
 main :: IO ()
-main = runAllTestFiles
+main = runAllTestFiles Nothing

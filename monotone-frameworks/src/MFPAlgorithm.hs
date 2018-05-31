@@ -15,7 +15,6 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set        as S
 
 import           Arc
-import           AnalysisHelpers
 
 import Debug.Trace -- TODO: Remove
 
@@ -148,13 +147,17 @@ instance SetRepr Analysis_AE where
 instance Transferable Analysis_AE where
   transfers b =
     let kill l =
-          let aexp_star = concatMap (either statExpressions (expressions . B) . snd) b
+          let aexp_star = let f (Boolean   expr) = expressions (B expr)
+                              f (Statement stat) = statExpressions stat
+                              f _                = []
+                          in concatMap (f . snd) b
+
           in case lookup l b of
             Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
             Just x ->
               case x of
-                Right expr -> AE (S.empty)
-                Left  stat ->
+                Boolean   expr -> AE (S.empty)
+                Statement stat ->
                   case stat of
                     Skip'     _        -> AE (S.empty)
                     IAssign'  _ v expr ->
@@ -163,14 +166,15 @@ instance Transferable Analysis_AE where
                       AE . S.fromList $ filter (notFreeIn v) aexp_star
                     Continue' _        -> AE (S.empty)
                     Break'    _        -> AE (S.empty)
+                _ -> AE (S.empty) -- TODO: misschien is dit niet goed
 
         gen l =
           case lookup l b of
             Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
             Just x ->
               case x of
-                Right expr -> AE (S.singleton (B expr))
-                Left  stat ->
+                Boolean expr   -> AE (S.singleton (B expr))
+                Statement stat ->
                   case stat of
                     Skip'     _        -> AE (S.empty)
                     IAssign'  _ v expr ->
@@ -179,6 +183,7 @@ instance Transferable Analysis_AE where
                       AE . S.fromList $ filter (freeIn v) (expressions (B expr))
                     Continue' _        -> AE (S.empty)
                     Break'    _        -> AE (S.empty)
+                _ -> AE (S.empty) -- TODO: misschien is dit niet goed
 
         t l = \(AE t) ->
           let (AE killSet) = kill l
@@ -190,13 +195,13 @@ instance Transferable Analysis_AE where
 -- Test voor tijdens het programmeren. TODO: Verwijder dit in de uiteindelijke
 -- versie.
 
-testAE =
-    mkMFInstance
-      (AE (S.fromList [ I (Plus  (Var "a") (Var "b")) , I (Times (Var "a") (Var "b")) , I (Plus  (Var "a") (IConst 1)) ]))
-      [Intra (Label 1) (Label 2), Intra (Label 4) (Label 5), Intra (Label 3) (Label 4), Intra (Label 5) (Label 3), Intra (Label 2) (Label 3)]
-      (map (\(x,y) -> (Label x, y)) [(1,Left (IAssign' (Label 1) "x" (Plus (Var "a") (Var "b")))),(2,Left (IAssign' (Label 2) "y" (Times (Var "a") (Var "b")))),(3,Right (GreaterThan (Var "y") (Plus (Var "a") (Var "b")))),(4,Left (IAssign' (Label 4) "a" (Plus (Var "a") (IConst 1)))),(5,Left (IAssign' (Label 5) "x" (Plus (Var "a") (Var "b"))))])
-      [(Label 1)]
-      (AE S.empty)
+-- testAE =
+--     mkMFInstance
+--       (AE (S.fromList [ I (Plus  (Var "a") (Var "b")) , I (Times (Var "a") (Var "b")) , I (Plus  (Var "a") (IConst 1)) ]))
+--       [Intra (Label 1) (Label 2), Intra (Label 4) (Label 5), Intra (Label 3) (Label 4), Intra (Label 5) (Label 3), Intra (Label 2) (Label 3)]
+--       (map (\(x,y) -> (Label x, y)) [(1,Left (IAssign' (Label 1) "x" (Plus (Var "a") (Var "b")))),(2,Left (IAssign' (Label 2) "y" (Times (Var "a") (Var "b")))),(3,Right (GreaterThan (Var "y") (Plus (Var "a") (Var "b")))),(4,Left (IAssign' (Label 4) "a" (Plus (Var "a") (IConst 1)))),(5,Left (IAssign' (Label 5) "x" (Plus (Var "a") (Var "b"))))])
+--       [(Label 1)]
+--       (AE S.empty)
 
 -- Analyse Strongly Live Variables
 
@@ -217,28 +222,30 @@ instance Transferable Analysis_SLV where
             Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
             Just x ->
               case x of
-                Right expr -> SLV S.empty
-                Left  stat ->
+                Boolean expr   -> SLV S.empty
+                Statement stat ->
                   case stat of
                     Skip'     _     -> SLV S.empty
                     IAssign'  _ v _ -> SLV (S.singleton v)
                     BAssign'  _ v _ -> SLV (S.singleton v)
                     Continue' _     -> SLV (S.empty)
                     Break'    _     -> SLV (S.empty)
+                _ -> SLV (S.empty) -- TODO misschien is dit niet goed
 
         gen l =
           case lookup l b of
             Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
             Just x ->
               case x of
-                Right expr -> SLV . S.fromList . variables $ (B expr)
-                Left  stat ->
+                Boolean   expr -> SLV . S.fromList . variables $ (B expr)
+                Statement stat ->
                   case stat of
                     Skip'     _     -> SLV S.empty
                     IAssign'  _ _ a -> SLV . S.fromList . variables $ (I a)
                     BAssign'  _ _ a -> SLV . S.fromList . variables $ (B a)
                     Continue' _     -> SLV (S.empty)
                     Break'    _     -> SLV (S.empty)
+                _ -> SLV (S.empty) -- TODO misschien is dit niet goed
         t l = \(SLV t) ->
           let (SLV killSet) = kill l
               (SLV genSet)  = gen  l
@@ -248,14 +255,14 @@ instance Transferable Analysis_SLV where
 
 -- Test voor tijdens het programmeren. TODO: Verwijder dit in de uiteindelijke
 -- versie.
-testSLV =
-  mkMFInstance
-    (SLV (S.fromList
-          ["a", "b", "x", "y"]))
-    (fmap reverseArc [Intra (Label 1) (Label 2), Intra (Label 4) (Label 5), Intra (Label 3) (Label 4), Intra (Label 5) (Label 3), Intra (Label 4) (Label 5)])
-    (map (\(x,y) -> (Label x, y)) [(1,Left (IAssign' (Label 1) "x" (Plus (Var "a") (Var "b")))),(2,Left (IAssign' (Label 2) "y" (Times (Var "a") (Var "b")))),(3,Right (GreaterThan (Var "y") (Plus (Var "a") (Var "b")))),(4,Left (IAssign' (Label 4) "a" (Plus (Var "a") (IConst 1)))),(5,Left (IAssign' (Label 5) "x" (Plus (Var "a") (Var "b"))))])
-    [(Label 3)]
-    (SLV (S.empty))
+-- testSLV =
+--   mkMFInstance
+--     (SLV (S.fromList
+--           ["a", "b", "x", "y"]))
+--     (fmap reverseArc [Intra (Label 1) (Label 2), Intra (Label 4) (Label 5), Intra (Label 3) (Label 4), Intra (Label 5) (Label 3), Intra (Label 4) (Label 5)])
+--     (map (\(x,y) -> (Label x, y)) [(1,Left (IAssign' (Label 1) "x" (Plus (Var "a") (Var "b")))),(2,Left (IAssign' (Label 2) "y" (Times (Var "a") (Var "b")))),(3,Right (GreaterThan (Var "y") (Plus (Var "a") (Var "b")))),(4,Left (IAssign' (Label 4) "a" (Plus (Var "a") (IConst 1)))),(5,Left (IAssign' (Label 5) "x" (Plus (Var "a") (Var "b"))))])
+--     [(Label 3)]
+--     (SLV (S.empty))
 
 -- Debugging printer: TODO REMOVE MAKE NICE
 niceShow :: (SetRepr l, Show (Elem l)) => Map k l -> IO ()

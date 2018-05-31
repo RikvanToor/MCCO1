@@ -7,6 +7,7 @@ optpragmas
 
 {
 import Arc
+
 }
 
 data Program
@@ -17,7 +18,9 @@ data Program
 data Program'
   | Program'  procs :: Procs'
               stat  :: Stat'
-  deriving Program' : Show
+#if PRETTY_PRINT != 1
+deriving instance Show Program'
+#endif
 
 type Procs  = [ Proc  ]
 type Procs' = [ Proc' ]
@@ -27,7 +30,9 @@ data Proc
 
 data Proc'
   | Proc'         labelEntry :: Label  labelReturn :: Label    name :: String  inp :: {[String]}  out :: String   stat :: Stat'
-  deriving Proc' : Show
+#if PRETTY_PRINT != 1
+deriving instance Show Proc'
+#endif
 
 data Stat
   | Skip
@@ -48,7 +53,7 @@ data Stat'
   | Skip'          label     :: Label
   | IfThenElse'    labelc    :: Label   cond      :: BExpr   stat1  :: Stat'  stat2  :: Stat'
   | While'         labelc    :: Label   cond      :: BExpr   stat   :: Stat'
-  | Call'          labelCall :: Label   labelExit :: Label     name   :: String params :: Exprs  out :: String
+  | Call'          labelCall :: Label   labelExit :: Label     name   :: String params :: {Exprs}  out :: String
   | IAssign'       label     :: Label   name      :: String  val    :: IExpr
   | BAssign'       label     :: Label   name      :: String  val    :: BExpr
   | Seq'           stat1     :: Stat' stat2     :: Stat'
@@ -143,7 +148,15 @@ instance Show Stat' where
       Break' label ->
         "[break] " ++ show label
       Call' labelCall labelExit name params out ->
-        ""
+        "[call " ++ name ++ "(" ++ concatMap ((++",") . show) params ++ out ++ ")]" ++ show labelCall ++ " " ++ show labelExit
+
+instance Show Program' where
+  show (Program' procs stat) = "Program':\n" ++ indentblock ((concatMap ((++"\n") . show) procs) ++ show stat)
+
+instance Show Proc' where
+  show (Proc' labelEntry labelReturn name inp out stat) = "proc " ++ name ++
+      "(" ++ concatMap (++ ", ") inp ++ "res " ++ out ++ ") is" ++ show labelEntry
+      ++ "\n" ++ indentblock (show stat) ++ "\nend " ++ show labelReturn ++ ";"
 
 -- helper functie die vooraan elke regel twee spaties stopt.
 indentblock :: String -> String
@@ -206,6 +219,18 @@ instance Show BExpr where
  -
  -}
 {
+
+-- Type van het resultaat
+type AGResult = (Exprs, Blocks, Flow, Finals, Init, Flow)
+
+agResult_aexpr_star (x, _, _, _, _, _, _) = x
+agResult_all_vars   (_, x, _, _, _, _, _) = x
+agResult_blocks     (_, _, x, _, _, _, _) = x
+agResult_cfg        (_, _, _, x, _, _, _) = x
+agResult_finals     (_, _, _, _, x, _, _) = x
+agResult_init       (_, _, _, _, _, x, _) = x
+agResult_rcfg       (_, _, _, _, _, _, x) = x
+
 newtype Label = Label { getLabel :: Int } deriving (Eq, Ord)
 
 #if PRETTY_PRINT == 1
@@ -228,7 +253,7 @@ attr Proc Procs
 attr Stat
   syn transformed :: Stat'
 
-attr BExpr IExpr
+attr Procs' Proc' Stat' BExpr IExpr
   syn copy :: self
 
 attr Expr Exprs
@@ -244,16 +269,32 @@ type Finals = [Label]
 
 type Flow   = Graph Label
 
-type Block = (Label, Either Stat' BExpr)
+data CallBlock = CallBlock String Exprs String
+  deriving Show
+
+data ProcBlock = ProcBlock String [String] String
+  deriving Show
+
+data Block'
+  = Statement  Stat'
+  | Boolean    BExpr
+  | CallProc   CallBlock
+  | ReturnProc CallBlock
+  | IsProc     ProcBlock
+  | EndProc    ProcBlock
+  deriving Show
+
+type Block  = (Label, Block')
+type Blocks = [Block]
 }
 
 
 attr Program'
-  syn cfg    :: {[Arc Label]}
-  syn rcfg   :: {[Arc Label]}
-  syn init   :: Init
-  syn finals :: Finals
-  syn blocks :: {[Block]}
+  syn cfg        :: {[Arc Label]}
+  syn rcfg       :: {[Arc Label]}
+  syn init       :: Init
+  syn finals     :: Finals
+  syn blocks     :: {[Block]}
 
 attr Stat'
   syn blocks        use {(++)} {[]} :: {[Block]}
@@ -262,6 +303,19 @@ attr Stat'
   syn finals        use {(++)} {[]} :: Finals
   syn flow          use {(++)} {[]} :: Flow
   syn init                          :: Init
+
+attr Procs' Proc'
+  syn blocks        use {(++)} {[]} :: {[Block]}
+  syn flow          use {(++)} {[]} :: Flow
+
+attr Procs' Proc' Stat'
+  inh allProcs :: {Procs'}
+
+attr Program' Stat' IExpr BExpr
+  -- Deze zijn nodig als `universe' voor statische analyses als Available
+  -- expressions en live variable analysis
+  syn aexpr_star use {(++)} {[]} :: {Exprs}
+  syn all_vars   use {(++)} {[]} :: {[String]}
 
 --------------------------------------------------------------------------------
 --                                3. Semantiek                                --
@@ -347,9 +401,13 @@ sem Stat'
 
 sem Program'
   | Program'
-    loc.c      = @stat.flow
+    loc.c      = @stat.flow ++ @procs.flow
     lhs.cfg    = @loc.c
        .rcfg   = reverseGraph @loc.c
+
+sem Proc'
+  | Proc'       lhs.flow = (Intra @labelEntry @stat.init) : @stat.flow
+                           ++ (map (flip Intra @labelReturn) @stat.finals)
 
 sem Stat'
   | IfThenElse' lhs.flow = @stat1.flow ++  @stat2.flow ++
@@ -358,8 +416,10 @@ sem Stat'
                                        [Intra x @labelc | x <- @stat.continueInits]
                            in concat [@stat.flow, [Intra @labelc @stat.init], extra]
                 lhs.continueInits = []
-  | Call'       lhs.flow = [Inter @labelCall undefined undefined @labelExit] -- TODO
-
+  | Call'       lhs.flow = case lookup @name $
+                           map (\(Proc' l1 l2 n _ _ _) -> (n,(l1,l2))) @lhs.allProcs of
+                              Nothing -> [Intra @labelCall @labelExit]
+                              Just (l1,l2) -> [Inter @labelCall l1 l2 @labelExit]
   | Seq'        lhs.flow = let extra = [Intra x @stat2.init | x <- @stat1.finals]
                            in concat [@stat1.flow, @stat2.flow, extra]
   | Continue'   lhs.continueInits = [@label]
@@ -367,24 +427,46 @@ sem Stat'
 -- Blocks
 
 sem Program'
-  | Program'    lhs.blocks = @stat.blocks
+  | Program'    lhs.blocks = @procs.blocks ++ @stat.blocks
 
 sem Stat'
-  | Skip'       lhs.blocks = [(@label, Left $ Skip' @label)]
-  | IfThenElse' lhs.blocks = [(@labelc, Right @cond.copy)] ++ @stat1.blocks ++ @stat2.blocks
-  | While'      lhs.blocks = [(@labelc, Right @cond.copy)] ++ @stat.blocks
-  | IAssign'    lhs.blocks = [(@label, Left $ IAssign' @label @name @val)]
+  | Skip'       lhs.blocks = [(@label, Statement $ Skip' @label)]
+  | IfThenElse' lhs.blocks = [(@labelc, Boolean @cond.copy)] ++ @stat1.blocks ++ @stat2.blocks
+  | While'      lhs.blocks = [(@labelc, Boolean @cond.copy)] ++ @stat.blocks
+  | IAssign'    lhs.blocks = [(@label, Statement @copy)]
+  | Call'       lhs.blocks = let block = CallBlock @name @params @out in
+                              [(@labelCall, CallProc block), (@labelExit, ReturnProc block)]
   | Seq'        lhs.blocks = @stat1.blocks ++ @stat2.blocks
-  | BAssign'    lhs.blocks = [(@label, Left $ BAssign' @label @name @val)]
-  | Malloc'     lhs.blocks = [(@label, Left $ Malloc' @label @name @size)]
-  | RefAssign'  lhs.blocks = [(@label, Left $ RefAssign' @label @ptr @val)]
-  | Free'       lhs.blocks = [(@label, Left $ Free' @label @ptr)]
-  | Continue'   lhs.blocks = [(@label, Left $ Continue' @label)]
-  | Break'      lhs.blocks = [(@label, Left $ Break' @label)]
-  | Call'
-                lhs.blocks = [(@labelCall
-                              , Left $ Call' @labelCall @labelExit @name @params.copy @out
-                             )]
+  | BAssign'    lhs.blocks = [(@label, Statement @copy)]
+  | Malloc'     lhs.blocks = [(@label, Statement @copy)]
+  | RefAssign'  lhs.blocks = [(@label, Statement @copy)]
+  | Free'       lhs.blocks = [(@label, Statement @copy)]
+  | Continue'   lhs.blocks = [(@label, Statement @copy)]
+  | Break'      lhs.blocks = [(@label, Statement @copy)]
+
+sem Proc'
+  | Proc'       lhs.blocks = let block = ProcBlock @name @inp @out in
+                              [(@labelEntry, IsProc block), (@labelReturn, EndProc block)] ++ @stat.blocks
+
+-- All Procs
+
+sem Program'
+  | Program'    procs.allProcs = @procs.copy
+                stat.allProcs  = @procs.copy
+
+sem Procs'
+  | Cons        hd.allProcs  = @lhs.allProcs
+                tl.allProcs  = @lhs.allProcs
+
+sem Proc'
+  | Proc'       stat.allProcs = @lhs.allProcs
+
+sem Stat'
+  | Seq'        stat1.allProcs = @lhs.allProcs
+                stat2.allProcs = @lhs.allProcs
+  | IfThenElse' stat1.allProcs = @lhs.allProcs
+                stat2.allProcs = @lhs.allProcs
+  | While'      stat.allProcs  = @lhs.allProcs
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --
@@ -403,4 +485,180 @@ sem Stat'
 nextUnique :: Label -> (Label, Label)
 nextUnique (Label x) = (Label (x + 1), Label x)
 
+-- Alle variabelen in een expressie
+variables :: Expr -> [String]
+variables (I e) =
+  case e of
+    IConst _ -> []
+    Var name -> [name]
+    Plus   l r -> variables (I l) ++ variables (I r)
+    Minus  l r -> variables (I l) ++ variables (I r)
+    Times  l r -> variables (I l) ++ variables (I r)
+    Divide l r -> variables (I l) ++ variables (I r)
+    Deref  ptr -> variables (I ptr)
+variables (B e) =
+  case e of
+    BConst _  -> []
+    BVar name -> [name]
+    LessThan     l r -> variables (I l) ++ variables (I r)
+    GreaterThan  l r -> variables (I l) ++ variables (I r)
+    LessEqual    l r -> variables (I l) ++ variables (I r)
+    GreaterEqual l r -> variables (I l) ++ variables (I r)
+    IEqual       l r -> variables (I l) ++ variables (I r)
+    BEqual       l r -> variables (B l) ++ variables (B r)
+    And          l r -> variables (B l) ++ variables (B r)
+    Or           l r -> variables (B l) ++ variables (B r)
+    Not val -> variables (B val)
+
+-- Vrije variabelen
+
+-- Controleert of een variabele @v@ vrij is in @expr@. Dat is het geval desda v
+-- niet genoemd wordt in een van de variabelen in @expr@. Als hij wel genoemd
+-- wordt dan is hij niet vrij.
+freeIn, notFreeIn :: String -> Expr -> Bool
+freeIn    v expr = not (notFreeIn v expr)
+notFreeIn v expr = v `elem` (variables expr)
+
+
+-- Alle (syntax gestuurde) sub-expressies in een expressie.
+expressions :: Expr -> [Expr]
+expressions (I e) =
+  case e of
+    IConst _ -> []
+    Var _    -> []
+    Plus   l r -> concat [[I (Plus   l r)], expressions (I l), expressions (I r)]
+    Minus  l r -> concat [[I (Minus  l r)], expressions (I l), expressions (I r)]
+    Times  l r -> concat [[I (Times  l r)], expressions (I l), expressions (I r)]
+    Divide l r -> concat [[I (Divide l r)], expressions (I l), expressions (I r)]
+    Deref  ptr -> expressions (I ptr)
+expressions (B e) =
+  case e of
+    BConst _  -> []
+    BVar _    -> []
+    LessThan     l r -> concat [[B (LessThan     l r)], expressions (I l), expressions (I r)]
+    GreaterThan  l r -> concat [[B (GreaterThan  l r)], expressions (I l), expressions (I r)]
+    LessEqual    l r -> concat [[B (LessEqual    l r)], expressions (I l), expressions (I r)]
+    GreaterEqual l r -> concat [[B (GreaterEqual l r)], expressions (I l), expressions (I r)]
+    IEqual       l r -> concat [[B (IEqual       l r)], expressions (I l), expressions (I r)]
+    BEqual       l r -> concat [[B (BEqual       l r)], expressions (B l), expressions (B r)]
+    And          l r -> concat [[B (And          l r)], expressions (B l), expressions (B r)]
+    Or           l r -> concat [[B (Or           l r)], expressions (B l), expressions (B r)]
+    Not val -> expressions (B val)
+
+statExpressions :: Stat' -> [Expr]
+statExpressions e =
+  case e of
+    Skip' _ -> []
+    IfThenElse'  _ cond stat1 stat2 ->
+      expressions (B cond) ++ concatMap statExpressions [stat1, stat2]
+    While' _ cond stat ->
+      expressions (B cond) ++ (statExpressions stat)
+    Call' _ _ _ _ _    -> [] -- TODO: Inter
+    IAssign' _ _ val   -> expressions (I val)
+    BAssign' _ _ val   -> expressions (B val)
+    Seq' l r           -> concatMap statExpressions [l, r]
+    Malloc' _ _ size   -> expressions (I size)
+    Free' _ ptr        -> expressions (I ptr)
+    RefAssign' _ ptr val -> concatMap expressions [I ptr, I val]
+    Continue' _        -> []
+    Break'    _        -> []
+
 }
+
+--------------------------------------------------------------------------------
+--                               5. Hulpcatas                                 --
+--------------------------------------------------------------------------------
+
+-- Alle expressies in het programma
+sem IExpr
+  | Plus
+    lhs.aexpr_star =
+      expressions (I @left.copy) ++ expressions (I @right.copy)
+  | Minus
+    lhs.aexpr_star =
+      expressions (I @left.copy) ++ expressions (I @right.copy)
+  | Times
+    lhs.aexpr_star =
+      expressions (I @left.copy) ++ expressions (I @right.copy)
+  | Divide
+    lhs.aexpr_star =
+      expressions (I @left.copy) ++ expressions (I @right.copy)
+  | Deref
+    lhs.aexpr_star =
+      expressions (I @ptr.copy)
+
+sem BExpr
+  | LessThan
+    lhs.aexpr_star =
+      expressions (I @left.copy) ++ expressions (I @right.copy)
+  | GreaterThan
+    lhs.aexpr_star =
+      expressions (I @left.copy) ++ expressions (I @right.copy)
+  | LessEqual
+    lhs.aexpr_star =
+      expressions (I @left.copy) ++ expressions (I @right.copy)
+  | GreaterEqual
+    lhs.aexpr_star =
+      expressions (I @left.copy) ++ expressions (I @right.copy)
+  | IEqual
+    lhs.aexpr_star =
+      expressions (I @left.copy) ++ expressions (I @right.copy)
+  | BEqual
+    lhs.aexpr_star =
+      expressions (B @left.copy) ++ expressions (B @right.copy)
+  | And
+    lhs.aexpr_star =
+      expressions (B @left.copy) ++ expressions (B @right.copy)
+  | Or
+    lhs.aexpr_star =
+      expressions (B @left.copy) ++ expressions (B @right.copy)
+  | Not
+    lhs.aexpr_star =
+      expressions (B @val.copy)
+
+-- Alle variabelen in het programma
+sem IExpr
+  | Plus
+    lhs.all_vars =
+      variables (I @left.copy) ++ variables (I @right.copy)
+  | Minus
+    lhs.all_vars =
+      variables (I @left.copy) ++ variables (I @right.copy)
+  | Times
+    lhs.all_vars =
+      variables (I @left.copy) ++ variables (I @right.copy)
+  | Divide
+    lhs.all_vars =
+      variables (I @left.copy) ++ variables (I @right.copy)
+  | Deref
+    lhs.all_vars =
+      variables (I @ptr.copy)
+
+sem BExpr
+  | LessThan
+    lhs.all_vars =
+      variables (I @left.copy) ++ variables (I @right.copy)
+  | GreaterThan
+    lhs.all_vars =
+      variables (I @left.copy) ++ variables (I @right.copy)
+  | LessEqual
+    lhs.all_vars =
+      variables (I @left.copy) ++ variables (I @right.copy)
+  | GreaterEqual
+    lhs.all_vars =
+      variables (I @left.copy) ++ variables (I @right.copy)
+  | IEqual
+    lhs.all_vars =
+      variables (I @left.copy) ++ variables (I @right.copy)
+  | BEqual
+    lhs.all_vars =
+      variables (B @left.copy) ++ variables (B @right.copy)
+  | And
+    lhs.all_vars =
+      variables (B @left.copy) ++ variables (B @right.copy)
+  | Or
+    lhs.all_vars =
+      variables (B @left.copy) ++ variables (B @right.copy)
+  | Not
+    lhs.all_vars =
+      variables (B @val.copy)
