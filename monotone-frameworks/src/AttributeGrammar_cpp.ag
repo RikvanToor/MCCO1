@@ -240,7 +240,7 @@ attr Proc Procs
 attr Stat
   syn transformed :: Stat'
 
-attr BExpr IExpr
+attr Procs' Proc' Stat' BExpr IExpr
   syn copy :: self
 
 {- Alleen de types die een accent-versie hebben krijgen het transformed
@@ -288,6 +288,10 @@ attr Stat'
 
 attr Procs' Proc'
   syn blocks        use {(++)} {[]} :: {[Block]}
+  syn flow          use {(++)} {[]} :: Flow
+
+attr Procs' Proc' Stat'
+  inh allProcs :: {Procs'}
 
 --------------------------------------------------------------------------------
 --                                3. Semantiek                                --
@@ -373,9 +377,13 @@ sem Stat'
 
 sem Program'
   | Program'
-    loc.c      = @stat.flow
+    loc.c      = @stat.flow ++ @procs.flow
     lhs.cfg    = @loc.c
        .rcfg   = reverseGraph @loc.c
+
+sem Proc'
+  | Proc'       lhs.flow = (Intra @labelEntry @stat.init) : @stat.flow 
+                           ++ (map (flip Intra @labelReturn) @stat.finals)
 
 sem Stat'
   | IfThenElse' lhs.flow = @stat1.flow ++  @stat2.flow ++
@@ -384,7 +392,10 @@ sem Stat'
                                        [Intra x @labelc | x <- @stat.continueInits]
                            in concat [@stat.flow, [Intra @labelc @stat.init], extra]
                 lhs.continueInits = []
-  | Call'       lhs.flow = [] -- Alleen voor Interprocedural belangrijk
+  | Call'       lhs.flow = case lookup @name $ 
+                           map (\(Proc' l1 l2 n _ _ _) -> (n,(l1,l2))) @lhs.allProcs of
+                              Nothing -> [Intra @labelCall @labelExit]
+                              Just (l1,l2) -> [Inter @labelCall l1 l2 @labelExit]
   | Seq'        lhs.flow = let extra = [Intra x @stat2.init | x <- @stat1.finals]
                            in concat [@stat1.flow, @stat2.flow, extra]
   | Continue'   lhs.continueInits = [@label]
@@ -412,6 +423,26 @@ sem Stat'
 sem Proc'
   | Proc'       lhs.blocks = let block = ProcBlock @name @inp @out in
                               [(@labelEntry, IsProc block), (@labelReturn, EndProc block)] ++ @stat.blocks
+
+-- All Procs
+
+sem Program'
+  | Program'    procs.allProcs = @procs.copy
+                stat.allProcs  = @procs.copy
+
+sem Procs'
+  | Cons        hd.allProcs  = @lhs.allProcs
+                tl.allProcs  = @lhs.allProcs
+
+sem Proc'
+  | Proc'       stat.allProcs = @lhs.allProcs
+
+sem Stat'
+  | Seq'        stat1.allProcs = @lhs.allProcs
+                stat2.allProcs = @lhs.allProcs
+  | IfThenElse' stat1.allProcs = @lhs.allProcs
+                stat2.allProcs = @lhs.allProcs
+  | While'      stat.allProcs  = @lhs.allProcs
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --

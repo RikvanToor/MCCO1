@@ -5,7 +5,7 @@ import Data.List
 
 data Arc a
   = Intra { from :: a, to :: a }
-  | Inter { from :: a, to :: a, placeholder1 :: a, placeholder2 :: a }
+  | Inter { call :: a, entry :: a, exit :: a, return :: a }
   deriving Eq
 
 instance Ord a => Ord (Arc a) where
@@ -13,7 +13,7 @@ instance Ord a => Ord (Arc a) where
 
 instance Show a => Show (Arc a) where
   show (Intra x y)     = show (x, y)
-  show (Inter x y q w) = undefined
+  show (Inter x y q w) = show (x, y) ++ ", " ++ show (q,w)
 
 instance Functor Arc where
   fmap f (Intra x y)     = Intra (f x) (f y)
@@ -21,7 +21,7 @@ instance Functor Arc where
 
 reverseArc :: Arc a -> Arc a
 reverseArc (Intra x y) = (Intra y x)
-reverseArc (Inter x y q w) = (Inter x y q w) -- TODO
+reverseArc (Inter x y q w) = (Inter y x w q) -- TODO
 
 type Graph a = [Arc a]
 
