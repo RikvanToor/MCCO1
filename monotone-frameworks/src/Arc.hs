@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Arc where
 
 import Data.Function
@@ -5,15 +7,17 @@ import Data.List
 
 data Arc a
   = Intra { from :: a, to :: a }
-  | Inter { from :: a, to :: a, placeholder1 :: a, placeholder2 :: a }
+  | Inter { call :: a, entry :: a, exit :: a, return :: a }
   deriving Eq
 
 instance Ord a => Ord (Arc a) where
   compare = on compare from
 
 instance Show a => Show (Arc a) where
-  show (Intra x y)     = show (x, y)
-  show (Inter x y q w) = undefined
+  show (Intra x y) = show (x, y)
+  show Inter{..}   = concat [ "(", show call, "; ", show entry , "), "
+                            , "(", show exit, "; ", show return, ")"
+                            ]
 
 instance Functor Arc where
   fmap f (Intra x y)     = Intra (f x) (f y)
@@ -21,7 +25,7 @@ instance Functor Arc where
 
 reverseArc :: Arc a -> Arc a
 reverseArc (Intra x y) = (Intra y x)
-reverseArc (Inter x y q w) = (Inter x y q w) -- TODO
+reverseArc Inter{..}   = Inter entry call return exit
 
 type Graph a = [Arc a]
 

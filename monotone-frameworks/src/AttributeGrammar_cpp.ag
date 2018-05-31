@@ -231,6 +231,9 @@ attr Stat
 attr BExpr IExpr
   syn copy :: self
 
+attr Expr Exprs
+  syn copy :: self
+
 {- Alleen de types die een accent-versie hebben krijgen het transformed
  - attribuut omdat daar labels aan verbonden moeten worden.
  -}
@@ -355,7 +358,8 @@ sem Stat'
                                        [Intra x @labelc | x <- @stat.continueInits]
                            in concat [@stat.flow, [Intra @labelc @stat.init], extra]
                 lhs.continueInits = []
-  | Call'       lhs.flow = [] -- Alleen voor Interprocedural belangrijk
+  | Call'       lhs.flow = [Inter @labelCall undefined undefined @labelExit] -- TODO
+
   | Seq'        lhs.flow = let extra = [Intra x @stat2.init | x <- @stat1.finals]
                            in concat [@stat1.flow, @stat2.flow, extra]
   | Continue'   lhs.continueInits = [@label]
@@ -370,7 +374,6 @@ sem Stat'
   | IfThenElse' lhs.blocks = [(@labelc, Right @cond.copy)] ++ @stat1.blocks ++ @stat2.blocks
   | While'      lhs.blocks = [(@labelc, Right @cond.copy)] ++ @stat.blocks
   | IAssign'    lhs.blocks = [(@label, Left $ IAssign' @label @name @val)]
-  | Call'       lhs.blocks = [] -- WUT
   | Seq'        lhs.blocks = @stat1.blocks ++ @stat2.blocks
   | BAssign'    lhs.blocks = [(@label, Left $ BAssign' @label @name @val)]
   | Malloc'     lhs.blocks = [(@label, Left $ Malloc' @label @name @size)]
@@ -378,6 +381,10 @@ sem Stat'
   | Free'       lhs.blocks = [(@label, Left $ Free' @label @ptr)]
   | Continue'   lhs.blocks = [(@label, Left $ Continue' @label)]
   | Break'      lhs.blocks = [(@label, Left $ Break' @label)]
+  | Call'
+                lhs.blocks = [(@labelCall
+                              , Left $ Call' @labelCall @labelExit @name @params.copy @out
+                             )]
 
 --------------------------------------------------------------------------------
 --                               4. Hulpfuncties                              --

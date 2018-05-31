@@ -4,6 +4,7 @@ import Lexer
 import Parser
 import AttributeGrammar
 import System.Directory
+import MFPAlgorithm
 
 -- Parsen
 parse :: String -> Program
@@ -74,6 +75,38 @@ test_ReverseFlow fp p =
   let p' = sem_Program p
       (_, _, _, _, rcfg) = sem_Program' p'
   in report (fp ++ ": test_ReverseFlow ") (show rcfg)
+
+-- Available expressions
+
+test_AExpr :: FilePath -> Program' -> String
+test_AExpr fp p =
+  let p' = sem_Program p
+      (blocks, cfg, finals, init, _) = sem_Program' p'
+      monotoneFrameworkInstance =
+        MonotoneFramework
+          (AE (S.fromList _))
+          cfg
+          blocks
+          [init]
+          (AE S.empty)
+      rep = fmap (show . S.toList . toSet) . M.elems . mfp $ monotoneFrameworkInstance
+  in report (fp ++ ": test_AExpr ") rep
+
+-- Live variables
+
+test_AExpr :: FilePath -> Program' -> String
+test_AExpr fp p =
+  let p' = sem_Program p
+      (blocks, _, finals, init, rcfg) = sem_Program' p'
+      monotoneFrameworkInstance =
+        MonotoneFramework
+          (SLV (S.fromList _))
+          rcfg
+          blocks
+          finals
+          (SLV S.empty)
+      rep = fmap (show . S.toList . toSet) . M.elems . mfp $ monotoneFrameworkInstance
+  in report (fp ++ ": test_StronglyLiveVariables") rep
 
 -- Reportage
 line :: String
