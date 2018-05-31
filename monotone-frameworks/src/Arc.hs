@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module Arc where
 
 import Data.Function
@@ -13,7 +14,10 @@ instance Ord a => Ord (Arc a) where
 
 instance Show a => Show (Arc a) where
   show (Intra x y)     = show (x, y)
-  show (Inter x y q w) = show (x, y) ++ ", " ++ show (q,w)
+  show Inter{..} = concat [ "(", show call, ";", show entry, "), "
+                                , "(", show exit, "; ", show return, ")"
+                                ]
+
 
 instance Functor Arc where
   fmap f (Intra x y)     = Intra (f x) (f y)
