@@ -66,14 +66,16 @@ class Eq l => Lattice l where
 -- direct op
 class Lattice l => SetRepr l where
   type Elem l
-  toSet   :: l -> Set (Elem l)
+  toSet :: l -> Set (Elem l)
 
--- Maximal Fixed Point
+{- Maximal Fixed Point
+ -
+ - Levert de Analysis-open op. Als de transfer functies nogmaals worden
+ - toegepast op het resultaat van maximalFixedPoint dan krijg je de
+ - Analysis-gesloten.
+ -}
 
-type IterationState l = State
-  ( [Arc Label]
-  , LabelState l
-  )
+type IterationState l = State ([Arc Label], LabelState l)
 
 maximalFixedPoint
   :: forall l. Transferable l
@@ -142,16 +144,17 @@ instance Lattice Analysis_AE where
 
 instance SetRepr Analysis_AE where
   type Elem Analysis_AE = Expr
-  toSet   = unAE
+  toSet = unAE
 
 instance Transferable Analysis_AE where
   transfers b =
     let kill l =
-          let aexp_star = let f (Boolean   expr) = expressions (B expr)
-                              f (Statement stat) = statExpressions stat
-                              f _                = []
-                          in concatMap (f . snd) b
-
+          let
+            aexp_star =
+              let f (Boolean   expr) = expressions (B expr)
+                  f (Statement stat) = statExpressions stat
+                  f _                = []
+              in concatMap (f . snd) b
           in case lookup l b of
             Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
             Just x ->
@@ -164,9 +167,6 @@ instance Transferable Analysis_AE where
                       AE . S.fromList $ filter (notFreeIn v) aexp_star
                     BAssign'  _ v expr ->
                       AE . S.fromList $ filter (notFreeIn v) aexp_star
-                    Continue' _        -> AE (S.empty)
-                    Break'    _        -> AE (S.empty)
-                _ -> AE (S.empty) -- TODO: misschien is dit niet goed
 
         gen l =
           case lookup l b of
@@ -181,27 +181,13 @@ instance Transferable Analysis_AE where
                       AE . S.fromList $ filter (freeIn v) (expressions (I expr))
                     BAssign'  _ v expr ->
                       AE . S.fromList $ filter (freeIn v) (expressions (B expr))
-                    Continue' _        -> AE (S.empty)
-                    Break'    _        -> AE (S.empty)
-                _ -> AE (S.empty) -- TODO: misschien is dit niet goed
 
         t l = \(AE t) ->
           let (AE killSet) = kill l
               (AE genSet)  = gen  l
           in AE $ (t `S.difference` killSet) `S.union` genSet
 
-    in M.fromList [(l, t l) | l <- fmap fst b]
-
--- Test voor tijdens het programmeren. TODO: Verwijder dit in de uiteindelijke
--- versie.
-
--- testAE =
---     mkMFInstance
---       (AE (S.fromList [ I (Plus  (Var "a") (Var "b")) , I (Times (Var "a") (Var "b")) , I (Plus  (Var "a") (IConst 1)) ]))
---       [Intra (Label 1) (Label 2), Intra (Label 4) (Label 5), Intra (Label 3) (Label 4), Intra (Label 5) (Label 3), Intra (Label 2) (Label 3)]
---       (map (\(x,y) -> (Label x, y)) [(1,Left (IAssign' (Label 1) "x" (Plus (Var "a") (Var "b")))),(2,Left (IAssign' (Label 2) "y" (Times (Var "a") (Var "b")))),(3,Right (GreaterThan (Var "y") (Plus (Var "a") (Var "b")))),(4,Left (IAssign' (Label 4) "a" (Plus (Var "a") (IConst 1)))),(5,Left (IAssign' (Label 5) "x" (Plus (Var "a") (Var "b"))))])
---       [(Label 1)]
---       (AE S.empty)
+    in M.fromList [(l, t l) | (l, _) <- b]
 
 -- Analyse Strongly Live Variables
 
@@ -217,53 +203,176 @@ instance SetRepr Analysis_SLV where
 
 instance Transferable Analysis_SLV where
   transfers b =
-    let kill l =
-          case lookup l b of
-            Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
-            Just x ->
-              case x of
-                Boolean expr   -> SLV S.empty
-                Statement stat ->
-                  case stat of
-                    Skip'     _     -> SLV S.empty
-                    IAssign'  _ v _ -> SLV (S.singleton v)
-                    BAssign'  _ v _ -> SLV (S.singleton v)
-                    Continue' _     -> SLV (S.empty)
-                    Break'    _     -> SLV (S.empty)
-                _ -> SLV (S.empty) -- TODO misschien is dit niet goed
+    let
+      kill l =
+        case lookup l b of
+          Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
+          Just x ->
+            case x of
+              Boolean expr   -> SLV S.empty
+              Statement stat ->
+                case stat of
+                  Skip'     _     -> SLV S.empty
+                  IAssign'  _ v _ -> SLV (S.singleton v)
+                  BAssign'  _ v _ -> SLV (S.singleton v)
 
-        gen l =
-          case lookup l b of
-            Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
-            Just x ->
-              case x of
-                Boolean   expr -> SLV . S.fromList . variables $ (B expr)
-                Statement stat ->
-                  case stat of
-                    Skip'     _     -> SLV S.empty
-                    IAssign'  _ _ a -> SLV . S.fromList . variables $ (I a)
-                    BAssign'  _ _ a -> SLV . S.fromList . variables $ (B a)
-                    Continue' _     -> SLV (S.empty)
-                    Break'    _     -> SLV (S.empty)
-                _ -> SLV (S.empty) -- TODO misschien is dit niet goed
-        t l = \(SLV t) ->
-          let (SLV killSet) = kill l
-              (SLV genSet)  = gen  l
-          in SLV $ (t `S.difference` killSet) `S.union` genSet
+      gen l =
+        case lookup l b of
+          Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
+          Just x ->
+            case x of
+              Boolean   expr -> SLV . S.fromList . variables $ (B expr)
+              Statement stat ->
+                case stat of
+                  Skip'     _     -> SLV S.empty
+                  IAssign'  _ _ a -> SLV . S.fromList . variables $ (I a)
+                  BAssign'  _ _ a -> SLV . S.fromList . variables $ (B a)
+      t l = \(SLV t) ->
+        let (SLV killSet) = kill l
+            (SLV genSet)  = gen  l
+        in SLV $ (t `S.difference` killSet) `S.union` genSet
 
     in M.fromList [(l, t l) | (l, _) <- b]
 
--- Test voor tijdens het programmeren. TODO: Verwijder dit in de uiteindelijke
--- versie.
--- testSLV =
---   mkMFInstance
---     (SLV (S.fromList
---           ["a", "b", "x", "y"]))
---     (fmap reverseArc [Intra (Label 1) (Label 2), Intra (Label 4) (Label 5), Intra (Label 3) (Label 4), Intra (Label 5) (Label 3), Intra (Label 4) (Label 5)])
---     (map (\(x,y) -> (Label x, y)) [(1,Left (IAssign' (Label 1) "x" (Plus (Var "a") (Var "b")))),(2,Left (IAssign' (Label 2) "y" (Times (Var "a") (Var "b")))),(3,Right (GreaterThan (Var "y") (Plus (Var "a") (Var "b")))),(4,Left (IAssign' (Label 4) "a" (Plus (Var "a") (IConst 1)))),(5,Left (IAssign' (Label 5) "x" (Plus (Var "a") (Var "b"))))])
---     [(Label 3)]
---     (SLV (S.empty))
+-- Constant Propagation
 
--- Debugging printer: TODO REMOVE MAKE NICE
-niceShow :: (SetRepr l, Show (Elem l)) => Map k l -> IO ()
-niceShow = mapM_ print . fmap (S.toList . toSet) . M.elems
+-- Evalueer een expressie. Expressies bestaan als condition of als rechterhand
+-- van een assignment. Die berekeningen zijn puur dus de variabele omgeving
+-- hoeft niet te worden vernieuwd in deze evaluator.
+--
+-- Als variabelen niet gevonden worden in de omgeving is het resultaat ⊤
+eval :: Map String D -> Expr -> D
+eval env arg =
+  case arg of
+    (I expr) ->
+      let
+        iOp f l r =
+          let (D left ) = eval env (I l)
+              (D right) = eval env (I r)
+          in case (left, right) of
+            (Top, _) -> D Top
+            (_, Top) -> D Top
+            (Val (PrimitiveInt leftRes), Val (PrimitiveInt rightRes)) ->
+              D . Val . PrimitiveInt $ (f leftRes rightRes)
+      in case expr of
+        IConst   x -> D . Val . PrimitiveInt $ x
+        Var    var -> topLookup var env
+        Plus   l r -> iOp (+)   l r
+        Minus  l r -> iOp (-)   l r
+        Times  l r -> iOp (*)   l r
+        Divide l r -> iOp (div) l r
+        Deref  ptr -> eval env (I ptr)
+    (B expr) ->
+      let
+        -- Integer operator (met bijbehorende pattern matches)
+        iOp f l r =
+          let (D (Val (PrimitiveInt left ))) = eval env (I l)
+              (D (Val (PrimitiveInt right))) = eval env (I r)
+          in D . Val . PrimitiveBool $ (f left right)
+        -- Boolse operator (met bijbehorende pattern matches)
+        bOp f l r =
+          let (D (Val (PrimitiveBool left ))) = eval env (B l)
+              (D (Val (PrimitiveBool right))) = eval env (B r)
+          in D . Val . PrimitiveBool $ (f left right)
+      in case expr of
+        BConst         x -> D . Val . PrimitiveBool $ x
+        BVar         var -> topLookup var env
+        LessThan     l r -> iOp (<)  l r
+        GreaterThan  l r -> iOp (>)  l r
+        LessEqual    l r -> iOp (<=) l r
+        GreaterEqual l r -> iOp (>=) l r
+        IEqual       l r -> iOp (==) l r
+
+        BEqual       l r -> bOp (==) l r
+        And          l r -> bOp (&&) l r
+        Or           l r -> bOp (||) l r
+        Not          val ->
+          let (D (Val (PrimitiveBool res))) = eval env (B val)
+          in D . Val . PrimitiveBool $ (not res)
+
+-- Zoek in een omgeving naar een sleutelwaarde en als die niet voorkomt is het
+-- resultaat ⊤
+topLookup :: Ord k => k -> Map k D -> D
+topLookup k m =
+  case M.lookup k m of
+    Nothing -> D Top
+    Just x  -> x
+
+-- Zo kunnen we primitieve datatypes uitbreiden met ⊥ en ⊤
+data Domain a
+  = Top
+  | Val a
+  | Bottom
+  deriving Eq
+
+instance Ord a => Ord (Domain a) where
+  compare Bottom  Bottom  = EQ          -- ⊥ = ⊥
+  compare Top     Top     = EQ          -- ⊤ = ⊤
+  compare _       Bottom  = GT          -- ∀x ≠ ⊥: x > ⊥
+  compare Top     _       = GT          -- ∀x ≠ ⊤: ⊤ > x
+  compare _       Top     = LT          -- ∀x ≠ ⊤: x < ⊤ 
+  compare Bottom  _       = LT          -- ∀x ≠ ⊥: ⊥ < x
+  compare (Val a) (Val b) = compare a b -- ∀ (x, y) ∉ {⊤, ⊥}²
+
+instance Show a => Show (Domain a) where
+  show Top     = "⊤"
+  show Bottom  = "⊥"
+  show (Val a) = show a
+
+data Primitive
+  = PrimitiveBool Bool
+  | PrimitiveInt Int
+  deriving Eq
+
+instance Show Primitive where
+  show (PrimitiveBool x) = show x
+  show (PrimitiveInt  x) = show x
+
+newtype D = D { unD :: Domain Primitive } deriving Eq
+
+instance Show D where
+  show (D x) = show x
+
+newtype Analysis_CP = CP { unCP :: Map String D } deriving Eq
+
+instance Show Analysis_CP where
+  show (CP x) = show x
+
+instance Lattice Analysis_CP where
+  bottom       (CP x) = CP (undefined x)
+
+  {- De join van twee opzoektabellen is hetzelfde als de unificatie, maar
+   - wanneer er twee variabelen ongelijke waarden hebben dan is de nieuwe waarde
+   - ⊤.
+   -
+   - vb.
+   -
+   - {(a, 2), (b, 3), (c, 5)} ⊔ {(a, 2), (b, 4)} = {(a, 2), (b, ⊤), (c, 5)}
+   -}
+  joinl (CP x) (CP y) =
+    let
+      difference = M.difference x y `M.union` M.difference y x
+      f (lvar, lval) (rvar, rval)
+        | lvar == rvar = if lval == rval then Just (lvar, lval) else Just (lvar, D Top)
+        | otherwise    = Nothing -- Beschouw alleen variabelen met gelijke naam
+      common = M.fromList . mapMaybe (uncurry f) $
+        [(m1, m2) | m1 <- M.toList (M.intersection x y)
+                  , m2 <- M.toList (M.intersection y x)]
+    in CP (common `M.union` difference)
+
+instance Transferable Analysis_CP where
+  -- transfers :: [Block] -> Map Label (Analysis_CP -> Analysis_CP)
+  transfers b =
+    let
+      t l =
+        case lookup l b of
+          Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
+          Just x  ->
+            case x of
+              Boolean expr   -> id
+              Statement stat ->
+                case stat of
+                  Skip'     _     -> id
+                  IAssign'  _ x a -> \(CP env) -> CP $ M.insert x (eval env (I a)) env
+                  BAssign'  _ x a -> \(CP env) -> CP $ M.insert x (eval env (B a)) env
+    in M.fromList [ (l, t l) | (l, _) <- b]

@@ -38,8 +38,16 @@ runAllTestFiles blacklist =
     let tested = [uncurry test prog | prog <- zip cs ps, test <- allTests]
     mapM_ putStrLn tested
 
+type Test = FilePath -> Program -> String
+
+runTest :: Test -> FilePath -> IO String
+runTest t f =
+  do
+    p <- parseFile (testDir ++ f)
+    return (t f p)
+
 -- Specifieke tests
-allTests :: [FilePath -> Program -> String]
+allTests :: [Test]
 allTests =
   [ test_Labels
   , test_Init
@@ -87,13 +95,12 @@ test_AExpr :: FilePath -> Program -> String
 test_AExpr fp p =
   let res = sem_Program' . sem_Program $ p
       monotoneFrameworkInstance =
-        MonotoneFramework
+        mkMFInstance
           (AE . S.fromList . agResult_aexpr_star $ res)
           (agResult_cfg res)
           (agResult_blocks res)
           [agResult_init res]
           (AE S.empty)
-          (transfers . agResult_blocks $ res)
       rep = fmap (show . S.toList . toSet) . M.elems . maximalFixedPoint $ monotoneFrameworkInstance
   in report (fp ++ ": test_AExpr ") (unlines rep)
 
@@ -103,13 +110,12 @@ test_SLV :: FilePath -> Program -> String
 test_SLV fp p =
   let res = sem_Program' .  sem_Program $ p
       monotoneFrameworkInstance =
-        MonotoneFramework
+        mkMFInstance
           (SLV . S.fromList . agResult_all_vars $ res)
           (agResult_rcfg res)
           (agResult_blocks res)
           (agResult_finals res)
           (SLV S.empty)
-          (transfers . agResult_blocks $ res)
       rep = fmap (show . S.toList . toSet) . M.elems . maximalFixedPoint $ monotoneFrameworkInstance
   in report (fp ++ ": test_StronglyLiveVariables") (unlines rep)
 
