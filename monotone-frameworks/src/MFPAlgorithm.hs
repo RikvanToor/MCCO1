@@ -80,7 +80,7 @@ type IterationState l = State ([Arc Label], LabelState l)
 maximalFixedPoint
   :: forall l. Transferable l
   => MonotoneFramework l
-  -> LabelState l
+  -> (LabelState l, LabelState l)
 maximalFixedPoint MonotoneFramework{..} =
   let
     {- 1. Initialisatie
@@ -131,14 +131,14 @@ maximalFixedPoint MonotoneFramework{..} =
                 put (w', a')
               step
 
-    -- Analysis-open
+    -- MFP-open
     contextState = snd . snd . runState step $ (reverse flow, initial)
 
-    -- Analysis-closed
+    -- MFP-closed
     effectState  = M.mapWithKey (\l s -> (transferFuns M.! l) s) contextState
 
     -- Voor nu nog even handmatig wisselen tussen open en closed.
-  in effectState
+  in (contextState, effectState)
 
 -- Class voor het genereren van transfer functies
 class Lattice l => Transferable l where
@@ -195,7 +195,7 @@ instance Transferable Analysis_AE where
         t l = \(AE t) ->
           let (AE killSet) = kill l
               (AE genSet)  = gen  l
-          in AE $ (t `S.difference` killSet) `S.union` genSet
+          in AE $ (t S.\\ killSet) `S.union` genSet
 
     in M.fromList [(l, t l) | (l, _) <- b]
 
@@ -244,7 +244,7 @@ instance Transferable Analysis_SLV where
       t l = \(SLV t) ->
         let (SLV killSet) = kill l
             (SLV genSet)  = gen  l
-        in SLV $ (t `S.difference` killSet) `S.union` genSet
+        in SLV $ (t S.\\ killSet) `S.union` genSet
 
     in M.fromList [(l, t l) | (l, _) <- b]
 
@@ -351,7 +351,6 @@ instance Show Analysis_CP where
 instance Lattice Analysis_CP where
   bottom       = const (CP M.empty)
 
-  -- Doorsnede want het is een must analyse
   joinl (CP x) (CP y) =
     let
       mapToSet = S.fromList . M.toList
@@ -360,13 +359,13 @@ instance Lattice Analysis_CP where
       yset = mapToSet y
 
       -- Unieke delen kunnen blind toegevoegd worden aan de unie
-      xUnique = S.difference xset yset
-      yUnique = S.difference yset xset
+      xUnique =  xset S.\\ yset
+      yUnique =  yset S.\\ xset
 
       -- Gemeenschappelijke delen kunnen alleen worden toegevoegd als er geen
       -- elementen met dezelfde variabelenaam een andere waarde hebben.
-      xCommon = S.difference xset xUnique
-      yCommon = S.difference yset yUnique
+      xCommon = xset S.\\ xUnique
+      yCommon = yset S.\\ yUnique
 
       f (lvar, lval) (rvar, rval)
         | lvar == rvar = Just $ if lval == rval

@@ -106,8 +106,11 @@ test_AExpr fp p =
           (agResult_blocks res)
           [agResult_init res]
           (AE S.empty)
-      rep = fmap (show . S.toList . toSet) . M.elems . maximalFixedPoint $ monotoneFrameworkInstance
-  in report (fp ++ ": test_AExpr ") (unlines rep)
+
+      (context, effect) = maximalFixedPoint monotoneFrameworkInstance
+      pres = unlines . fmap presentAnalysis_AE . M.toList
+  in report (fp ++ ": test_AExpr ")
+      (unlines ["# Context:", pres context, "# Effect", pres effect])
 
 -- Live variables
 
@@ -121,8 +124,11 @@ test_SLV fp p =
           (agResult_blocks res)
           (agResult_finals res)
           (SLV S.empty)
-      rep = fmap (show . S.toList . toSet) . M.elems . maximalFixedPoint $ monotoneFrameworkInstance
-  in report (fp ++ ": test_StronglyLiveVariables") (unlines rep)
+
+      (context, effect) = maximalFixedPoint monotoneFrameworkInstance
+      pres = unlines . fmap presentAnalysis_SLV . M.toList
+  in report (fp ++ ": test_StronglyLiveVariables")
+      (unlines ["# Context:", pres context, "# Effect", pres effect])
 
 
 -- Constant Propagation
@@ -139,9 +145,11 @@ test_CP fp p =
             [agResult_init res]
             u -- \x -> Top voor elke variabele
 
-      rep = unlines . fmap presentAnalysis_CP . M.toList . maximalFixedPoint $ monotoneFrameworkInstance
+      (context, effect) = maximalFixedPoint monotoneFrameworkInstance
+      pres = unlines . fmap presentAnalysis_CP . M.toList
 
-  in report (fp ++ ": test_ConstantPropagation") (rep)
+  in report (fp ++ ": test_ConstantPropagation")
+      (unlines ["# Context:", pres context, "# Effect", pres effect])
 
 
 -- Reportage
@@ -166,10 +174,21 @@ padWith c n align str =
     L -> str ++ padding
     R -> padding ++ str
 
+presentAnalysis_AE :: (Label, Analysis_AE) -> String
+presentAnalysis_AE (l, (AE x)) =
+  let
+    aexprs = intercalate ", " . fmap show . S.toList $ x
+  in show l ++ "\t{" ++ aexprs ++ "}"
+
+presentAnalysis_SLV :: (Label, Analysis_SLV) -> String
+presentAnalysis_SLV (l, (SLV x)) =
+  let
+    liveVars = intercalate ", " . S.toList $ x
+  in show l ++ "\t{" ++ liveVars ++ "}"
+
 presentAnalysis_CP :: (Label, Analysis_CP) -> String
 presentAnalysis_CP (l, (CP x)) =
   let
     varmap =
       intercalate ", " . fmap (\(var, val) -> concat [var, "=", show val]) $ M.toList x
   in show l ++ "\t{" ++ varmap ++ "}"
-

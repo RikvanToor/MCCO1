@@ -106,7 +106,16 @@ type Exprs  = [ Expr  ]
 data Expr
   | B BExpr
   | I IExpr
-  deriving Expr : Eq, Ord, Show
+  deriving Expr : Eq, Ord
+{
+#if PRETTY_PRINT != 1
+deriving instance Show BExpr
+#else
+instance Show Expr where
+  show (I expr) = show expr
+  show (B expr) = show expr
+#endif
+}
 
 data Code
   | CBExpr   BExpr
