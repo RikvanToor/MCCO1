@@ -82,53 +82,63 @@ maximalFixedPoint
   => MonotoneFramework l
   -> LabelState l
 maximalFixedPoint MonotoneFramework{..} =
-  let {- 1. Initialisatie
-       -
-       - Aan het einde van de initialisatie W = reverse flow en er wordt een map
-       - aangemaakt waarin alle voor elke l in F of E: als l in E dan
-       - analysis[l] = extremalValue, anders analysis[l] = bottom.
-       -
-       - Let op: hier (*) wordt de waarde van bottom geinjecteerd
-       -}
-      val v = if   v `elem` extremalLabels
-              then extremalValue
-              else bottom universe -- (*)
-      initial = M.fromList [(l, val l) | l <- nodes flow ++ extremalLabels]
+  let
+    {- 1. Initialisatie
+     -
+     - Aan het einde van de initialisatie W = reverse flow en er wordt een map
+     - aangemaakt waarin alle voor elke l in F of E: als l in E dan
+     - analysis[l] = extremalValue, anders analysis[l] = bottom.
+     -
+     - Let op: hier (*) wordt de waarde van bottom geinjecteerd
+     -}
+    val v = if   v `elem` extremalLabels
+            then extremalValue
+            else bottom universe -- (*)
+    initial = M.fromList [(l, val l) | l <- nodes flow ++ extremalLabels]
 
 
-      {- 2. Iteratie
-       -
-       - w is de staat van de kantenstapel en a is de staat van de analyse. de
-       - analysis functie is een helper om het leesbaar te houden.
-       -
-       - Wanneer w geen kanten meer bevat zijn we klaar. Anders is er nog een
-       - eerste kant die we moeten analyseren. Als de conditie (cond) /niet/
-       - waar is, wordt het binnenste gedeelte uitgevoerd:
-       -
-       -  * de staat van de analyse wordt aangepast
-       -  * elke kant in de CFG die van de /volgende/ toestand vertrekt wordt op
-       -    de kantenstapel gelegd.
-       -}
-      step :: IterationState l ()
-      step =
-        do
-          (w, a) <- get
-          let analysis l = a M.! l
-          case w of
-            []     -> Control.Monad.State.return ()
-            ((Intra from to):xs) -> -- TODO: Inter
-              do
-                let next = (transferFuns M.! from) (analysis from)
-                    cond = next `before` (analysis to)
-                if cond then do
-                  put (xs, a)
-                else do
-                  let a' = M.update (Just . joinl next) to a
-                      w' = foldl' (flip (:)) xs (flow `listArcsFrom` to)
+    {- 2. Iteratie
+     -
+     - w is de staat van de kantenstapel en a is de staat van de analyse. de
+     - analysis functie is een helper om het leesbaar te houden.
+     -
+     - Wanneer w geen kanten meer bevat zijn we klaar. Anders is er nog een
+     - eerste kant die we moeten analyseren. Als de conditie (cond) /niet/
+     - waar is, wordt het binnenste gedeelte uitgevoerd:
+     -
+     -  * de staat van de analyse wordt aangepast
+     -  * elke kant in de CFG die van de /volgende/ toestand vertrekt wordt op
+     -    de kantenstapel gelegd.
+     -}
+    step :: IterationState l ()
+    step =
+      do
+        (w, a) <- get
+        let analysis l = a M.! l
+        case w of
+          []     -> Control.Monad.State.return ()
+          ((Inter call entry exit return):xs) -> put (xs, a) -- TODO: Inter
+          ((Intra from to):xs) -> -- TODO: Inter
+            do
+              let next = (transferFuns M.! from) (analysis from)
+                  cond = next `before` (analysis to)
+              if cond then do
+                put (xs, a)
+              else do
+                let a' = M.update (\x -> Just (x `joinl` next)) to a
+                    w' = foldl' (flip (:)) xs (flow `listArcsFrom` to)
 
-                  put (w', a')
-                step
-  in snd . snd . runState step $ (reverse flow, initial)
+                put (w', a')
+              step
+
+    -- Analysis-open
+    contextState = snd . snd . runState step $ (reverse flow, initial)
+
+    -- Analysis-closed
+    effectState  = M.mapWithKey (\l s -> (transferFuns M.! l) s) contextState
+
+    -- Voor nu nog even handmatig wisselen tussen open en closed.
+  in effectState
 
 -- Class voor het genereren van transfer functies
 class Lattice l => Transferable l where
@@ -156,7 +166,7 @@ instance Transferable Analysis_AE where
                   f _                = []
               in concatMap (f . snd) b
           in case lookup l b of
-            Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
+            Nothing -> analysisLookupError l
             Just x ->
               case x of
                 Boolean   expr -> AE (S.empty)
@@ -170,7 +180,7 @@ instance Transferable Analysis_AE where
 
         gen l =
           case lookup l b of
-            Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
+            Nothing -> analysisLookupError l
             Just x ->
               case x of
                 Boolean expr   -> AE (S.singleton (B expr))
@@ -206,7 +216,7 @@ instance Transferable Analysis_SLV where
     let
       kill l =
         case lookup l b of
-          Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
+          Nothing -> analysisLookupError l
           Just x ->
             case x of
               Boolean expr   -> SLV S.empty
@@ -215,10 +225,12 @@ instance Transferable Analysis_SLV where
                   Skip'     _     -> SLV S.empty
                   IAssign'  _ v _ -> SLV (S.singleton v)
                   BAssign'  _ v _ -> SLV (S.singleton v)
+                  Continue' _     -> SLV S.empty
+                  Break'    _     -> SLV S.empty
 
       gen l =
         case lookup l b of
-          Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
+          Nothing -> analysisLookupError l
           Just x ->
             case x of
               Boolean   expr -> SLV . S.fromList . variables $ (B expr)
@@ -227,6 +239,8 @@ instance Transferable Analysis_SLV where
                   Skip'     _     -> SLV S.empty
                   IAssign'  _ _ a -> SLV . S.fromList . variables $ (I a)
                   BAssign'  _ _ a -> SLV . S.fromList . variables $ (B a)
+                  Continue' _     -> SLV S.empty
+                  Break'    _     -> SLV S.empty
       t l = \(SLV t) ->
         let (SLV killSet) = kill l
             (SLV genSet)  = gen  l
@@ -250,18 +264,22 @@ eval env arg =
           let (D left ) = eval env (I l)
               (D right) = eval env (I r)
           in case (left, right) of
-            (Top, _) -> D Top
-            (_, Top) -> D Top
+            (Bottom, _) -> D Bottom
+            (_, Bottom) -> D Bottom
+            (Top, _)    -> D Top
+            (_, Top)    -> D Top
             (Val (PrimitiveInt leftRes), Val (PrimitiveInt rightRes)) ->
               D . Val . PrimitiveInt $ (f leftRes rightRes)
       in case expr of
         IConst   x -> D . Val . PrimitiveInt $ x
-        Var    var -> topLookup var env
+        Var    var -> M.findWithDefault (D Top) var env
         Plus   l r -> iOp (+)   l r
         Minus  l r -> iOp (-)   l r
         Times  l r -> iOp (*)   l r
         Divide l r -> iOp (div) l r
-        Deref  ptr -> eval env (I ptr)
+        -- Voor nu, omdat er nog geen dereferentiesemantiek bestaat. Ook: Waarom
+        -- zijn er geen pointers naar booleans?
+        Deref  ptr -> D Top
     (B expr) ->
       let
         -- Integer operator (met bijbehorende pattern matches)
@@ -276,7 +294,7 @@ eval env arg =
           in D . Val . PrimitiveBool $ (f left right)
       in case expr of
         BConst         x -> D . Val . PrimitiveBool $ x
-        BVar         var -> topLookup var env
+        BVar         var -> M.findWithDefault (D Top) var env
         LessThan     l r -> iOp (<)  l r
         GreaterThan  l r -> iOp (>)  l r
         LessEqual    l r -> iOp (<=) l r
@@ -289,14 +307,6 @@ eval env arg =
         Not          val ->
           let (D (Val (PrimitiveBool res))) = eval env (B val)
           in D . Val . PrimitiveBool $ (not res)
-
--- Zoek in een omgeving naar een sleutelwaarde en als die niet voorkomt is het
--- resultaat ⊤
-topLookup :: Ord k => k -> Map k D -> D
-topLookup k m =
-  case M.lookup k m of
-    Nothing -> D Top
-    Just x  -> x
 
 -- Zo kunnen we primitieve datatypes uitbreiden met ⊥ en ⊤
 data Domain a
@@ -322,13 +332,13 @@ instance Show a => Show (Domain a) where
 data Primitive
   = PrimitiveBool Bool
   | PrimitiveInt Int
-  deriving Eq
+  deriving (Eq, Ord)
 
 instance Show Primitive where
   show (PrimitiveBool x) = show x
   show (PrimitiveInt  x) = show x
 
-newtype D = D { unD :: Domain Primitive } deriving Eq
+newtype D = D { unD :: Domain Primitive } deriving (Eq, Ord)
 
 instance Show D where
   show (D x) = show x
@@ -339,34 +349,49 @@ instance Show Analysis_CP where
   show (CP x) = show x
 
 instance Lattice Analysis_CP where
-  bottom       (CP x) = CP (undefined x)
+  bottom       = const (CP M.empty)
 
-  {- De join van twee opzoektabellen is hetzelfde als de unificatie, maar
-   - wanneer er twee variabelen ongelijke waarden hebben dan is de nieuwe waarde
-   - ⊤.
-   -
-   - vb.
-   -
-   - {(a, 2), (b, 3), (c, 5)} ⊔ {(a, 2), (b, 4)} = {(a, 2), (b, ⊤), (c, 5)}
-   -}
+  -- Doorsnede want het is een must analyse
   joinl (CP x) (CP y) =
     let
-      difference = M.difference x y `M.union` M.difference y x
+      mapToSet = S.fromList . M.toList
+
+      xset = mapToSet x
+      yset = mapToSet y
+
+      -- Unieke delen kunnen blind toegevoegd worden aan de unie
+      xUnique = S.difference xset yset
+      yUnique = S.difference yset xset
+
+      -- Gemeenschappelijke delen kunnen alleen worden toegevoegd als er geen
+      -- elementen met dezelfde variabelenaam een andere waarde hebben.
+      xCommon = S.difference xset xUnique
+      yCommon = S.difference yset yUnique
+
       f (lvar, lval) (rvar, rval)
-        | lvar == rvar = if lval == rval then Just (lvar, lval) else Just (lvar, D Top)
-        | otherwise    = Nothing -- Beschouw alleen variabelen met gelijke naam
-      common = M.fromList . mapMaybe (uncurry f) $
-        [(m1, m2) | m1 <- M.toList (M.intersection x y)
-                  , m2 <- M.toList (M.intersection y x)]
-    in CP (common `M.union` difference)
+        | lvar == rvar = Just $ if lval == rval
+                                then (lvar, lval)
+                                else (lvar, D Top)
+        | otherwise    = Nothing
+
+      union = S.fromList
+        [fromJust (f x y) | x <- S.toList xCommon
+                          , y <- S.toList yCommon
+                          , isJust (f x y)]
+
+
+    in CP (M.fromList . S.toList $ S.unions [xUnique, yUnique, union])
+
+instance SetRepr Analysis_CP where
+  type Elem Analysis_CP = (String, D)
+  toSet (CP x) = S.fromList . M.toList $ x
 
 instance Transferable Analysis_CP where
-  -- transfers :: [Block] -> Map Label (Analysis_CP -> Analysis_CP)
   transfers b =
     let
       t l =
         case lookup l b of
-          Nothing -> error $ "label " ++ show l ++ " does not occur in the analysis"
+          Nothing -> analysisLookupError l
           Just x  ->
             case x of
               Boolean expr   -> id
@@ -375,4 +400,11 @@ instance Transferable Analysis_CP where
                   Skip'     _     -> id
                   IAssign'  _ x a -> \(CP env) -> CP $ M.insert x (eval env (I a)) env
                   BAssign'  _ x a -> \(CP env) -> CP $ M.insert x (eval env (B a)) env
+                  Continue' _     -> id
+                  Break'    _     -> id
     in M.fromList [ (l, t l) | (l, _) <- b]
+
+-- Error functies
+analysisLookupError :: Label -> a
+analysisLookupError l =
+  error $ "label " ++ show l ++ " does not occur in the analysis"
