@@ -1,6 +1,7 @@
 module Test where
 
 import           AttributeGrammar
+import           Data.List
 import           Data.Map (Map)
 import           Data.Set (Set)
 import           Lexer
@@ -31,15 +32,26 @@ runAllTestFiles blacklist =
     cs <- testFiles
     let fs' = fmap (testDir ++) cs
         fs  = case blacklist of
-                Just bl -> filter (`notElem` bl) fs'
+                Just bl -> filter (`notElem` (bl ++ fmap (testDir++) bl)) fs'
                 _       -> []
 
     ps <- mapM parseFile fs
-    let tested = [uncurry test prog | prog <- zip cs ps, test <- allTests]
+    let tested = [uncurry test prog | prog <- zip fs ps, test <- allTests]
     mapM_ putStrLn tested
 
+type Test = FilePath -> Program -> String
+
+runTest :: Test -> FilePath -> IO String
+runTest t f =
+  do
+    p <- parseFile (testDir ++ f)
+    return (t f p)
+
+runTestPrint :: Test -> FilePath -> IO ()
+runTestPrint t f = runTest t f >>= putStrLn
+
 -- Specifieke tests
-allTests :: [FilePath -> Program -> String]
+allTests :: [Test]
 allTests =
   [ test_Labels
   , test_Init
@@ -49,6 +61,7 @@ allTests =
   , test_ReverseFlow
   , test_AExpr
   , test_SLV
+  , test_CP
   ]
 
 test_Labels :: FilePath -> Program -> String
@@ -87,13 +100,12 @@ test_AExpr :: FilePath -> Program -> String
 test_AExpr fp p =
   let res = sem_Program' . sem_Program $ p
       monotoneFrameworkInstance =
-        MonotoneFramework
+        mkMFInstance
           (AE . S.fromList . agResult_aexpr_star $ res)
           (agResult_cfg res)
           (agResult_blocks res)
           [agResult_init res]
           (AE S.empty)
-          (transfers . agResult_blocks $ res)
       rep = fmap (show . S.toList . toSet) . M.elems . maximalFixedPoint $ monotoneFrameworkInstance
   in report (fp ++ ": test_AExpr ") (unlines rep)
 
@@ -103,15 +115,34 @@ test_SLV :: FilePath -> Program -> String
 test_SLV fp p =
   let res = sem_Program' .  sem_Program $ p
       monotoneFrameworkInstance =
-        MonotoneFramework
+        mkMFInstance
           (SLV . S.fromList . agResult_all_vars $ res)
           (agResult_rcfg res)
           (agResult_blocks res)
           (agResult_finals res)
           (SLV S.empty)
-          (transfers . agResult_blocks $ res)
       rep = fmap (show . S.toList . toSet) . M.elems . maximalFixedPoint $ monotoneFrameworkInstance
   in report (fp ++ ": test_StronglyLiveVariables") (unlines rep)
+
+
+-- Constant Propagation
+
+test_CP :: FilePath -> Program -> String
+test_CP fp p =
+  let res = sem_Program' . sem_Program $ p
+      monotoneFrameworkInstance =
+        let u = CP . M.fromList $ [(var, D Top) | var <- agResult_all_vars res]
+        in mkMFInstance
+            u -- Hetzelfde als top
+            (agResult_cfg res)
+            (agResult_blocks res)
+            [agResult_init res]
+            u -- \x -> Top voor elke variabele
+
+      rep = unlines . fmap presentAnalysis_CP . M.toList . maximalFixedPoint $ monotoneFrameworkInstance
+
+  in report (fp ++ ": test_ConstantPropagation") (rep)
+
 
 -- Reportage
 line :: String
@@ -125,3 +156,20 @@ report header content =
     , ""
     , content
     ]
+
+data Align = L | R
+
+padWith :: Char -> Int -> Align -> String -> String
+padWith c n align str =
+  let padding = replicate (n - length str) c
+  in case align of
+    L -> str ++ padding
+    R -> padding ++ str
+
+presentAnalysis_CP :: (Label, Analysis_CP) -> String
+presentAnalysis_CP (l, (CP x)) =
+  let
+    varmap =
+      intercalate ", " . fmap (\(var, val) -> concat [var, "=", show val]) $ M.toList x
+  in show l ++ "\t{" ++ varmap ++ "}"
+
