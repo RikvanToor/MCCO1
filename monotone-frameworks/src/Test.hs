@@ -26,8 +26,8 @@ testDir = "../examples/"
 testFiles :: IO [FilePath]
 testFiles = listDirectory testDir
 
-runAllTestFiles :: Maybe [FilePath] -> IO ()
-runAllTestFiles blacklist =
+runAllTestFiles :: Int -> Maybe [FilePath] -> IO ()
+runAllTestFiles k blacklist =
   do
     cs <- testFiles
     let fs' = fmap (testDir ++) cs
@@ -36,61 +36,61 @@ runAllTestFiles blacklist =
                 _       -> fs'
 
     ps <- mapM parseFile fs
-    let tested = [uncurry test prog | prog <- zip fs ps, test <- allTests 3]
+    let tested = [uncurry (test k) prog | prog <- zip fs ps, test <- allTests ]
     mapM_ putStrLn tested
 
-type Test = FilePath -> Program -> String
+type Test = Int -> FilePath -> Program -> String
 
-runTest :: Test -> FilePath -> IO String
-runTest t f =
+runTest :: Test -> Int -> FilePath -> IO String
+runTest t k f =
   do
     p <- parseFile (testDir ++ f)
-    return (t f p)
+    return (t k f p)
 
-runTestPrint :: Test -> FilePath -> IO ()
-runTestPrint t f = runTest t f >>= putStrLn
+runTestPrint :: Test -> Int -> FilePath -> IO ()
+runTestPrint t k f = runTest t k f >>= putStrLn
 
 -- Specifieke tests
-allTests :: Int -> [Test]
-allTests k =
+allTests :: [Test]
+allTests =
   [ test_Labels
   , test_Init
   , test_Finals
   , test_Blocks
   , test_Flow
   , test_ReverseFlow
-  , test_AExpr k
-  , test_SLV k
-  , test_CP k
+  , test_AExpr
+  , test_SLV
+  , test_CP
   ]
 
-test_Labels :: FilePath -> Program -> String
-test_Labels fp p =
+test_Labels :: Int ->  FilePath -> Program -> String
+test_Labels _ fp p =
   let Program' _ s = sem_Program p
   in report (fp ++ ": test_Labels") (show s)
 
-test_Init :: FilePath -> Program -> String
-test_Init fp p =
+test_Init :: Int ->  FilePath -> Program -> String
+test_Init _ fp p =
   let res = agResult_init . sem_Program' . sem_Program $ p
   in report (fp ++ ": test_Init ") (show res)
 
-test_Finals :: FilePath -> Program -> String
-test_Finals fp p =
+test_Finals :: Int ->  FilePath -> Program -> String
+test_Finals _ fp p =
   let res = agResult_finals . sem_Program' . sem_Program $ p
   in report (fp ++ ": test_Finals ") (show res)
 
-test_Blocks :: FilePath -> Program -> String
-test_Blocks fp p =
+test_Blocks :: Int ->  FilePath -> Program -> String
+test_Blocks _ fp p =
   let res = agResult_blocks . sem_Program' . sem_Program $ p
   in report (fp ++ ": test_Blocks ") (show res)
 
-test_Flow :: FilePath -> Program -> String
-test_Flow fp p =
+test_Flow :: Int ->  FilePath -> Program -> String
+test_Flow _ fp p =
   let res = agResult_cfg . sem_Program' . sem_Program $ p
   in report (fp ++ ": test_Flow ") (show res)
 
-test_ReverseFlow :: FilePath -> Program -> String
-test_ReverseFlow fp p =
+test_ReverseFlow :: a ->  FilePath -> Program -> String
+test_ReverseFlow _ fp p =
   let res = agResult_rcfg . sem_Program' . sem_Program $ p
   in report (fp ++ ": test_ReverseFlow ") (show res)
 
