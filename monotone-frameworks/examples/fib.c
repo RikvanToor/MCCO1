@@ -8,6 +8,5 @@ begin
             v := v + u; 
         }
     end 
-    x := 2;
     call fib(x, 0, y);
 end

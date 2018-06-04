@@ -67,7 +67,7 @@ listArcsFrom g from ctx =
 
 listArcsReturns :: Eq a => Graph a -> a -> [a] -> [Arc a]
 listArcsReturns _ _ []        = []
-listArcsReturns g from (c:cs) = concat [listArcsFrom g w cs | Inter x y q w <- g, q == from, x == c]
+listArcsReturns g from (c:cs) = concat [[Intra q w] | Inter x y q w <- g, q == from, x == c]
 
 -- Predicaten over kanten
 isIntra :: Arc a -> Bool

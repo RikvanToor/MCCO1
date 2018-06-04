@@ -79,9 +79,10 @@ type IterationState l = State ([Arc Label], LabelState l, [Label])
 
 maximalFixedPoint
   :: forall l. Transferable l
-  => MonotoneFramework l
+  => Int
+  -> MonotoneFramework l
   -> (LabelState l, LabelState l)
-maximalFixedPoint MonotoneFramework{..} =
+maximalFixedPoint k MonotoneFramework{..} =
   let
     {- 1. Initialisatie
      -
@@ -118,8 +119,8 @@ maximalFixedPoint MonotoneFramework{..} =
         case w of
           []     -> Control.Monad.State.return ()
           ((Inter call entry exit return):xs) -> 
-            do            --TODO Change 3 to parameter k            
-              let nctx = take 3 $ call:ctx
+            do          
+              let nctx = take k $ call:ctx
                   next = (transferFuns M.! call) nctx (analysis call)
                   cond = next `before` (analysis entry)
               if cond then do
@@ -143,11 +144,11 @@ maximalFixedPoint MonotoneFramework{..} =
                 put (w', a', ctx)
               step
 
-    temp = snd . runState step $ (reverse flow, initial, [])
+    result = snd . runState step $ (reverse flow, initial, [])
     -- MFP-open
-    contextState = snd3 temp
+    contextState = snd3 result
 
-    callStrings = trd3 temp
+    callStrings = trd3 result
 
     -- MFP-closed
     effectState  = M.mapWithKey (\l s -> (transferFuns M.! l) callStrings s) contextState
@@ -428,20 +429,22 @@ instance Transferable Analysis_CP where
                   Continue' _     -> id
                   Break'    _     -> id
               IsProc      (ProcBlock n1 ps o1) -> case ctx of
-                                  [] -> error "Callstring is empty, but you arrived at a procedure anyway"
+                                  [] -> id
+                                        -- Lookup the label of the last call in the context
                                   _  -> case lookup (head ctx) b of
                                             -- Replace the parameters in a proc by the expressions passed by the call
                                           Just (CallProc (CallBlock n2 es o2)) -> \(CP env) ->
                                               CP $ foldr (\(k,a) -> M.insert k (eval env (a))) env (zip ps es)
                                           _ -> analysisLookupError (head ctx)
               EndProc     (ProcBlock n1 ps o1) -> case ctx of
-                                  [] -> error "CallString is empty, but you arrived at a procedure anyway"
+                                  [] -> id
+                                        -- Lookup the label of the last call in the context
                                   _  -> case lookup (head ctx) b of
                                             -- Replace the result variable of the call with the result assigned to said variable
                                           Just (CallProc (CallBlock n2 es o2)) -> \(CP env) ->
-                                              case M.lookup o2 env of
-                                                Nothing  -> CP env
-                                                (Just e) -> CP $ M.insert o1 e env
+                                              case M.lookup o1 env of
+                                                Nothing  -> CP env -- The output variable is not assigned to
+                                                (Just e) -> CP $ M.insert o2 e env
                                           _ -> analysisLookupError (head ctx)
               CallProc    cb -> id
               ReturnProc  cb -> id

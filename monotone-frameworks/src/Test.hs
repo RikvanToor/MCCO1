@@ -33,10 +33,10 @@ runAllTestFiles blacklist =
     let fs' = fmap (testDir ++) cs
         fs  = case blacklist of
                 Just bl -> filter (`notElem` (bl ++ fmap (testDir++) bl)) fs'
-                _       -> []
+                _       -> fs'
 
     ps <- mapM parseFile fs
-    let tested = [uncurry test prog | prog <- zip fs ps, test <- allTests]
+    let tested = [uncurry test prog | prog <- zip fs ps, test <- allTests 3]
     mapM_ putStrLn tested
 
 type Test = FilePath -> Program -> String
@@ -51,17 +51,17 @@ runTestPrint :: Test -> FilePath -> IO ()
 runTestPrint t f = runTest t f >>= putStrLn
 
 -- Specifieke tests
-allTests :: [Test]
-allTests =
+allTests :: Int -> [Test]
+allTests k =
   [ test_Labels
   , test_Init
   , test_Finals
   , test_Blocks
   , test_Flow
   , test_ReverseFlow
-  , test_AExpr
-  , test_SLV
-  , test_CP
+  , test_AExpr k
+  , test_SLV k
+  , test_CP k
   ]
 
 test_Labels :: FilePath -> Program -> String
@@ -96,8 +96,8 @@ test_ReverseFlow fp p =
 
 -- Available expressions
 
-test_AExpr :: FilePath -> Program -> String
-test_AExpr fp p =
+test_AExpr :: Int -> FilePath -> Program -> String
+test_AExpr k fp p =
   let res = sem_Program' . sem_Program $ p
       monotoneFrameworkInstance =
         mkMFInstance
@@ -107,15 +107,15 @@ test_AExpr fp p =
           [agResult_init res]
           (AE S.empty)
 
-      (context, effect) = maximalFixedPoint monotoneFrameworkInstance
+      (context, effect) = maximalFixedPoint k monotoneFrameworkInstance
       pres = unlines . fmap presentAnalysis_AE . M.toList
   in report (fp ++ ": test_AExpr ")
       (unlines ["# Context:", pres context, "# Effect", pres effect])
 
 -- Live variables
 
-test_SLV :: FilePath -> Program -> String
-test_SLV fp p =
+test_SLV :: Int -> FilePath -> Program -> String
+test_SLV k fp p =
   let res = sem_Program' .  sem_Program $ p
       monotoneFrameworkInstance =
         mkMFInstance
@@ -125,7 +125,7 @@ test_SLV fp p =
           (agResult_finals res)
           (SLV S.empty)
 
-      (context, effect) = maximalFixedPoint monotoneFrameworkInstance
+      (context, effect) = maximalFixedPoint k monotoneFrameworkInstance
       pres = unlines . fmap presentAnalysis_SLV . M.toList
   in report (fp ++ ": test_StronglyLiveVariables")
       (unlines ["# Context:", pres context, "# Effect", pres effect])
@@ -133,8 +133,8 @@ test_SLV fp p =
 
 -- Constant Propagation
 
-test_CP :: FilePath -> Program -> String
-test_CP fp p =
+test_CP :: Int -> FilePath -> Program -> String
+test_CP k fp p =
   let res = sem_Program' . sem_Program $ p
       monotoneFrameworkInstance =
         let u = CP . M.fromList $ [(var, D Top) | var <- agResult_all_vars res]
@@ -145,7 +145,7 @@ test_CP fp p =
             [agResult_init res]
             u -- \x -> Top voor elke variabele
 
-      (context, effect) = maximalFixedPoint monotoneFrameworkInstance
+      (context, effect) = maximalFixedPoint k monotoneFrameworkInstance
       pres = unlines . fmap presentAnalysis_CP . M.toList
 
   in report (fp ++ ": test_ConstantPropagation")
