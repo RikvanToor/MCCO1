@@ -118,15 +118,15 @@ maximalFixedPoint k MonotoneFramework{..} =
         let analysis l = a M.! l
         case w of
           []     -> Control.Monad.State.return ()
-          ((Inter call entry exit return):xs) -> 
-            do          
+          ((Inter call entry exit return):xs) ->
+            do
               let nctx = take k $ call:ctx
                   next = (transferFuns M.! call) nctx (analysis call)
                   cond = next `before` (analysis entry)
               if cond then do
                 put (xs, a, nctx)
               else do
-                let a' = M.update (\x -> Just (x `joinl` next)) entry a 
+                let a' = M.update (\x -> Just (x `joinl` next)) entry a
                     w' = foldl' (flip (:)) xs (listArcsFrom flow entry nctx)
 
                 put (w', a', nctx)
@@ -207,6 +207,8 @@ instance Transferable Analysis_AE where
                       AE . S.fromList $ filter (freeIn v) (expressions (I expr))
                     BAssign'  _ v expr ->
                       AE . S.fromList $ filter (freeIn v) (expressions (B expr))
+                    Continue' _        -> AE (S.empty)
+                    Break'    _        -> AE (S.empty)
                 IsProc     pb -> AE (S.empty)
                 EndProc    pb -> AE (S.empty)
                 CallProc   cb -> AE (S.empty)
@@ -415,7 +417,7 @@ instance SetRepr Analysis_CP where
 instance Transferable Analysis_CP where
   transfers b =
     let
-      t l ctx = 
+      t l ctx =
         case lookup l b of
           Nothing -> analysisLookupError l
           Just x  ->

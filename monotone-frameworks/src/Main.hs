@@ -18,8 +18,9 @@ main =
     fs <- listDirectory "../examples"
 
     putStrLn $ "Spatie-gescheiden lijst van programmas waarvan je de tests zou "
-             ++ "willen zien.\n\n* voor alle programmas, sommige crashen :(\n:"
+             ++ "willen zien.\n\n* voor alle programmas\n:"
              ++ "prefix met een - voor het vermijden van programmas\n"
+             ++ "Noot: test_CP termineert niet op slv_while.c\n"
 
     putStr "> "
 
