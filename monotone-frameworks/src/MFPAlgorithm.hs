@@ -28,7 +28,7 @@ data MonotoneFramework l = MonotoneFramework
   , blocks         :: [Block]
   , extremalLabels :: [Label]
   , extremalValue  :: l
-  , transferFuns   :: LabelState (l -> l)
+  , transferFuns   :: LabelState ([Label] -> l -> l)
   }
 
 mkMFInstance
@@ -75,7 +75,7 @@ class Lattice l => SetRepr l where
  - Analysis-gesloten.
  -}
 
-type IterationState l = State ([Arc Label], LabelState l)
+type IterationState l = State ([Arc Label], LabelState l, [Label])
 
 maximalFixedPoint
   :: forall l. Transferable l
@@ -113,36 +113,51 @@ maximalFixedPoint MonotoneFramework{..} =
     step :: IterationState l ()
     step =
       do
-        (w, a) <- get
+        (w, a, ctx) <- get
         let analysis l = a M.! l
         case w of
           []     -> Control.Monad.State.return ()
-          ((Inter call entry exit return):xs) -> put (xs, a) -- TODO: Inter
+          ((Inter call entry exit return):xs) -> 
+            do            --TODO Change 3 to parameter k            
+              let nctx = take 3 $ call:ctx
+                  next = (transferFuns M.! call) nctx (analysis call)
+                  cond = next `before` (analysis entry)
+              if cond then do
+                put (xs, a, nctx)
+              else do
+                let a' = M.update (\x -> Just (x `joinl` next)) entry a 
+                    w' = foldl' (flip (:)) xs (listArcsFrom flow entry nctx)
+
+                put (w', a', nctx)
+              step
           ((Intra from to):xs) -> -- TODO: Inter
             do
-              let next = (transferFuns M.! from) (analysis from)
+              let next = (transferFuns M.! from) ctx (analysis from)
                   cond = next `before` (analysis to)
               if cond then do
-                put (xs, a)
+                put (xs, a, ctx)
               else do
                 let a' = M.update (\x -> Just (x `joinl` next)) to a
-                    w' = foldl' (flip (:)) xs (flow `listArcsFrom` to)
+                    w' = foldl' (flip (:)) xs (listArcsFrom flow to ctx)
 
-                put (w', a')
+                put (w', a', ctx)
               step
 
+    temp = snd . runState step $ (reverse flow, initial, [])
     -- MFP-open
-    contextState = snd . snd . runState step $ (reverse flow, initial)
+    contextState = snd3 temp
+
+    callStrings = trd3 temp
 
     -- MFP-closed
-    effectState  = M.mapWithKey (\l s -> (transferFuns M.! l) s) contextState
+    effectState  = M.mapWithKey (\l s -> (transferFuns M.! l) callStrings s) contextState
 
     -- Voor nu nog even handmatig wisselen tussen open en closed.
   in (contextState, effectState)
 
 -- Class voor het genereren van transfer functies
 class Lattice l => Transferable l where
-  transfers :: [Block] -> Map Label (l -> l)
+  transfers :: [Block] -> Map Label ([Label] -> l -> l)
 
 -- Available expressions
 
@@ -158,7 +173,7 @@ instance SetRepr Analysis_AE where
 
 instance Transferable Analysis_AE where
   transfers b =
-    let kill l =
+    let kill ctx l =
           let
             aexp_star =
               let f (Boolean   expr) = expressions (B expr)
@@ -178,7 +193,7 @@ instance Transferable Analysis_AE where
                     BAssign'  _ v expr ->
                       AE . S.fromList $ filter (notFreeIn v) aexp_star
 
-        gen l =
+        gen ctx l =
           case lookup l b of
             Nothing -> analysisLookupError l
             Just x ->
@@ -191,12 +206,15 @@ instance Transferable Analysis_AE where
                       AE . S.fromList $ filter (freeIn v) (expressions (I expr))
                     BAssign'  _ v expr ->
                       AE . S.fromList $ filter (freeIn v) (expressions (B expr))
+                IsProc     pb -> AE (S.empty)
+                EndProc    pb -> AE (S.empty)
+                CallProc   cb -> AE (S.empty)
+                ReturnProc cb -> AE (S.empty)
 
-        t l = \(AE t) ->
-          let (AE killSet) = kill l
-              (AE genSet)  = gen  l
+        t l = \ctx (AE t) ->
+          let (AE killSet) = kill ctx l
+              (AE genSet)  = gen  ctx l
           in AE $ (t S.\\ killSet) `S.union` genSet
-
     in M.fromList [(l, t l) | (l, _) <- b]
 
 -- Analyse Strongly Live Variables
@@ -214,7 +232,7 @@ instance SetRepr Analysis_SLV where
 instance Transferable Analysis_SLV where
   transfers b =
     let
-      kill l =
+      kill ctx l =
         case lookup l b of
           Nothing -> analysisLookupError l
           Just x ->
@@ -227,8 +245,12 @@ instance Transferable Analysis_SLV where
                   BAssign'  _ v _ -> SLV (S.singleton v)
                   Continue' _     -> SLV S.empty
                   Break'    _     -> SLV S.empty
+              IsProc      pb -> SLV S.empty
+              EndProc     pb -> SLV S.empty
+              CallProc    cb -> SLV S.empty
+              ReturnProc  cb -> SLV S.empty
 
-      gen l =
+      gen ctx l =
         case lookup l b of
           Nothing -> analysisLookupError l
           Just x ->
@@ -241,9 +263,13 @@ instance Transferable Analysis_SLV where
                   BAssign'  _ _ a -> SLV . S.fromList . variables $ (B a)
                   Continue' _     -> SLV S.empty
                   Break'    _     -> SLV S.empty
-      t l = \(SLV t) ->
-        let (SLV killSet) = kill l
-            (SLV genSet)  = gen  l
+              IsProc      pb -> SLV S.empty
+              EndProc     pb -> SLV S.empty
+              CallProc    cb -> SLV S.empty
+              ReturnProc  cb -> SLV S.empty
+      t l = \ctx (SLV t) ->
+        let (SLV killSet) = kill ctx l
+            (SLV genSet)  = gen  ctx l
         in SLV $ (t S.\\ killSet) `S.union` genSet
 
     in M.fromList [(l, t l) | (l, _) <- b]
@@ -388,7 +414,7 @@ instance SetRepr Analysis_CP where
 instance Transferable Analysis_CP where
   transfers b =
     let
-      t l =
+      t l ctx = 
         case lookup l b of
           Nothing -> analysisLookupError l
           Just x  ->
@@ -401,7 +427,31 @@ instance Transferable Analysis_CP where
                   BAssign'  _ x a -> \(CP env) -> CP $ M.insert x (eval env (B a)) env
                   Continue' _     -> id
                   Break'    _     -> id
+              IsProc      (ProcBlock n1 ps o1) -> case ctx of
+                                  [] -> error "Callstring is empty, but you arrived at a procedure anyway"
+                                  _  -> case lookup (head ctx) b of
+                                            -- Replace the parameters in a proc by the expressions passed by the call
+                                          Just (CallProc (CallBlock n2 es o2)) -> \(CP env) ->
+                                              CP $ foldr (\(k,a) -> M.insert k (eval env (a))) env (zip ps es)
+                                          _ -> analysisLookupError (head ctx)
+              EndProc     (ProcBlock n1 ps o1) -> case ctx of
+                                  [] -> error "CallString is empty, but you arrived at a procedure anyway"
+                                  _  -> case lookup (head ctx) b of
+                                            -- Replace the result variable of the call with the result assigned to said variable
+                                          Just (CallProc (CallBlock n2 es o2)) -> \(CP env) ->
+                                              case M.lookup o2 env of
+                                                Nothing  -> CP env
+                                                (Just e) -> CP $ M.insert o1 e env
+                                          _ -> analysisLookupError (head ctx)
+              CallProc    cb -> id
+              ReturnProc  cb -> id
     in M.fromList [ (l, t l) | (l, _) <- b]
+
+snd3 :: (a,b,c) -> b
+snd3 (_,x,_) = x
+
+trd3 :: (a,b,c) -> c
+trd3 (_,_,x) = x
 
 -- Error functies
 analysisLookupError :: Label -> a

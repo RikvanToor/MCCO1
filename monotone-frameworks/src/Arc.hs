@@ -58,11 +58,16 @@ listArcsTowards g to =
       inter = [Inter x y q w | Inter x y q w <- g, y == to]
   in intra ++ inter
 
-listArcsFrom :: Eq a => Graph a -> a -> [Arc a]
-listArcsFrom g from =
+listArcsFrom :: Eq a => Graph a -> a -> [a] -> [Arc a]
+listArcsFrom g from ctx =
   let intra = [Intra x y     | Intra x y     <- g, x == from]
       inter = [Inter x y q w | Inter x y q w <- g, x == from]
-  in intra ++ inter
+      return = listArcsReturns g from ctx
+  in intra ++ inter ++ return
+
+listArcsReturns :: Eq a => Graph a -> a -> [a] -> [Arc a]
+listArcsReturns _ _ []        = []
+listArcsReturns g from (c:cs) = concat [listArcsFrom g w cs | Inter x y q w <- g, q == from, x == c]
 
 -- Predicaten over kanten
 isIntra :: Arc a -> Bool
