@@ -131,7 +131,7 @@ maximalFixedPoint k MonotoneFramework{..} =
 
                 put (w', a', nctx)
               step
-          ((Intra from to):xs) -> -- TODO: Inter
+          ((Intra from to):xs) ->
             do
               let next = (transferFuns M.! from) ctx (analysis from)
                   cond = next `before` (analysis to)
@@ -153,7 +153,6 @@ maximalFixedPoint k MonotoneFramework{..} =
     -- MFP-closed
     effectState  = M.mapWithKey (\l s -> (transferFuns M.! l) callStrings s) contextState
 
-    -- Voor nu nog even handmatig wisselen tussen open en closed.
   in (contextState, effectState)
 
 -- Class voor het genereren van transfer functies

@@ -19,12 +19,24 @@ main =
 
     putStrLn $ "Spatie-gescheiden lijst van programmas waarvan je de tests zou "
              ++ "willen zien.\n\n* voor alle programmas\n:"
+             ++ "ls voor een lijst\n"
              ++ "prefix met een - voor het vermijden van programmas\n"
              ++ "Noot: test_CP termineert niet op slv_while.c\n"
 
     putStr "> "
 
-    testfiles <- files (S.fromList fs) . words <$> getLine
+    inp <- getLine
+
+    tf <-
+      if inp == "ls" then do
+        ls inp
+
+        putStr "> "
+        return (files (S.fromList fs) . words <$> getLine)
+      else do
+        return (files (S.fromList fs) . words <$> getLine)
+
+    testfiles <- tf
 
     putStrLn $ "\nWelke K wil je hanteren? Voor embellished MF\n"
     putStr "> "
@@ -34,6 +46,11 @@ main =
     case testfiles of
       [] -> return ()
       xs -> runAllTestFiles k (Just xs)
+
+ls :: String -> IO ()
+ls str
+  | str == "ls" = listDirectory "../examples" >>= putStrLn . unlines
+  | otherwise   = return ()
 
 files :: Set FilePath -> [String] -> [FilePath]
 files fs xs

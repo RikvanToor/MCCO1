@@ -562,7 +562,7 @@ statExpressions e =
       expressions (B cond) ++ concatMap statExpressions [stat1, stat2]
     While' _ cond stat ->
       expressions (B cond) ++ (statExpressions stat)
-    Call' _ _ _ _ _    -> [] -- TODO: Inter
+    Call' _ _ _ _ _    -> [] -- TODO(?): Inter
     IAssign' _ _ val   -> expressions (I val)
     BAssign' _ _ val   -> expressions (B val)
     Seq' l r           -> concatMap statExpressions [l, r]
