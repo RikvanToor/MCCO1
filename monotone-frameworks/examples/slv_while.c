@@ -4,4 +4,5 @@ begin
       y := 1 + x;
       x := y;
   }
+  skip;
 end

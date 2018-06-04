@@ -10,5 +10,5 @@ begin
     nog_eens := y * y * y * y;
 
   }
-  skip
+  skip;
 end

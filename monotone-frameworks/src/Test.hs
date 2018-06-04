@@ -27,12 +27,12 @@ testFiles :: IO [FilePath]
 testFiles = listDirectory testDir
 
 runAllTestFiles :: Int -> Maybe [FilePath] -> IO ()
-runAllTestFiles k blacklist =
+runAllTestFiles k whitelist =
   do
     cs <- testFiles
     let fs' = fmap (testDir ++) cs
-        fs  = case blacklist of
-                Just bl -> filter (`notElem` (bl ++ fmap (testDir++) bl)) fs'
+        fs  = case whitelist of
+                Just bl -> filter (`elem` (bl ++ fmap (testDir++) bl)) fs'
                 _       -> fs'
 
     ps <- mapM parseFile fs
